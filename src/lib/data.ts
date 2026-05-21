@@ -1,9 +1,9 @@
-import { supabase } from "./supabase";
-import type { BudgetData, BurdenRule, CategoryKind, ExpenseTarget, HouseholdMember } from "./types";
+import { createServerSupabaseClient } from "./supabase/server";
+import type { BudgetData, CategoryKind, ExpenseTarget, HouseholdMember } from "./types";
 
 const defaultSettings = {
   groupName: "未設定",
-  burdenRule: "50:50" as BurdenRule,
+  burdenRule: "fifty_fifty" as const,
   customShares: {}
 };
 
@@ -21,46 +21,66 @@ export const emptyBudgetData: BudgetData = {
 };
 
 export async function getBudgetData(): Promise<BudgetData> {
-  if (!supabase) {
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
     return emptyBudgetData;
   }
 
-  const { data: group } = await supabase
-    .from("household_groups")
+  const { data: membership } = await supabase
+    .from("household_members")
     .select("*")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  if (!group) {
-    return emptyBudgetData;
+  if (!membership) {
+    return { ...emptyBudgetData, currentUserId: user.id };
   }
 
-  const groupId = group.id as string;
-  const [membersResult, categoriesResult, incomesResult, savingsResult, fixedCostsResult, loansResult, expensesResult, summariesResult] =
-    await Promise.all([
-      supabase.from("household_members").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
-      supabase.from("categories").select("*").eq("household_group_id", groupId).order("sort_order", { ascending: true }),
-      supabase.from("incomes").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: false }),
-      supabase.from("savings").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
-      supabase.from("fixed_costs").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
-      supabase.from("loans").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
-      supabase.from("expenses").select("*").eq("household_group_id", groupId).order("spent_on", { ascending: false }),
-      supabase.from("monthly_summaries").select("*").eq("household_group_id", groupId).order("target_month", { ascending: false })
-    ]);
+  const groupId = String(membership.household_group_id);
+  const [
+    groupResult,
+    membersResult,
+    categoriesResult,
+    incomesResult,
+    savingsResult,
+    fixedCostsResult,
+    loansResult,
+    expensesResult,
+    summariesResult
+  ] = await Promise.all([
+    supabase.from("household_groups").select("*").eq("id", groupId).maybeSingle(),
+    supabase.from("household_members").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
+    supabase.from("categories").select("*").eq("household_group_id", groupId).order("sort_order", { ascending: true }),
+    supabase.from("incomes").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: false }),
+    supabase.from("savings").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
+    supabase.from("fixed_costs").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
+    supabase.from("loans").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
+    supabase.from("expenses").select("*").eq("household_group_id", groupId).order("spent_on", { ascending: false }),
+    supabase.from("monthly_summaries").select("*").eq("household_group_id", groupId).order("target_month", { ascending: false })
+  ]);
 
   const members = (membersResult.data ?? []).map((member: Record<string, unknown>): HouseholdMember => ({
     id: String(member.id),
+    userId: member.user_id ? String(member.user_id) : undefined,
     name: String(member.display_name ?? ""),
-    role: member.role === "self" ? "自分" : "パートナー",
-    shareRatio: Number(member.custom_share_ratio ?? 0)
+    role: member.role === "owner" ? "owner" : "member",
+    shareRatio: Number(member.custom_share_ratio ?? 0.5)
   }));
 
   return {
+    householdGroupId: groupId,
+    currentUserId: user.id,
+    currentMemberId: String(membership.id),
     members,
     settings: {
-      groupName: String(group.name ?? "未設定"),
-      burdenRule: mapBurdenRule(String(group.burden_rule ?? "fifty_fifty")),
+      groupName: String(groupResult.data?.name ?? "未設定"),
+      burdenRule: mapBurdenRule(String(groupResult.data?.burden_rule ?? "fifty_fifty")),
       customShares: Object.fromEntries(members.map((member) => [member.id, member.shareRatio]))
     },
     categories: (categoriesResult.data ?? []).map((category: Record<string, unknown>) => ({
@@ -140,14 +160,14 @@ export async function getBudgetData(): Promise<BudgetData> {
   };
 }
 
-function mapBurdenRule(value: string): BurdenRule {
-  if (value === "custom") return "任意割合";
-  if (value === "income_ratio") return "収入比率";
-  return "50:50";
+function mapBurdenRule(value: string) {
+  if (value === "custom") return "custom" as const;
+  if (value === "income_ratio") return "income_ratio" as const;
+  return "fifty_fifty" as const;
 }
 
 function mapExpenseTarget(value: string): ExpenseTarget {
-  if (value === "self_only") return "自分のみ";
-  if (value === "partner_only") return "パートナーのみ";
-  return "共有";
+  if (value === "self_only") return "self_only";
+  if (value === "partner_only") return "partner_only";
+  return "shared";
 }

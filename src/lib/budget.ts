@@ -135,15 +135,14 @@ export function getMonthlyTrend(data: BudgetData) {
 
 export function getComparisonSummary(data: BudgetData, target: CompareTarget) {
   const summaries = [...data.monthlySummaries].sort((a, b) => b.month.localeCompare(a.month));
-  if (target === "先月") return summaries.find((summary) => summary.month === getShiftedMonthKey(-1));
-  if (target === "先々月") return summaries.find((summary) => summary.month === getShiftedMonthKey(-2));
-  if (target === "半年前") return summaries.find((summary) => summary.month === getShiftedMonthKey(-6));
-  if (target === "1年前同月") return summaries.find((summary) => summary.month === getShiftedMonthKey(-12));
+  if (target === "last_month") return summaries.find((summary) => summary.month === getShiftedMonthKey(-1));
+  if (target === "two_months_ago") return summaries.find((summary) => summary.month === getShiftedMonthKey(-2));
+  if (target === "six_months_ago") return summaries.find((summary) => summary.month === getShiftedMonthKey(-6));
+  if (target === "same_month_last_year") return summaries.find((summary) => summary.month === getShiftedMonthKey(-12));
 
   const lastThreeKeys = [getShiftedMonthKey(-1), getShiftedMonthKey(-2), getShiftedMonthKey(-3)];
   const lastThree = summaries.filter((summary) => lastThreeKeys.includes(summary.month));
   if (lastThree.length === 0) return undefined;
-
   return averageSummaries("3か月平均", lastThree);
 }
 
@@ -179,7 +178,7 @@ function getShiftedMonthKey(offset: number, referenceDate = appToday) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "先月") {
+export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "last_month") {
   const current = createCurrentMonthlySummary(data);
   const compared = getComparisonSummary(data, target);
 
@@ -205,22 +204,19 @@ export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "
     categoryRows: getCategoriesByKind(data, "expense").map((category) => {
       const currentValue = current.categoryExpenses[category.id] ?? 0;
       const comparedValue = compared?.categoryExpenses[category.id] ?? 0;
-      return {
-        category,
-        currentValue,
-        comparedValue,
-        diff: currentValue - comparedValue
-      };
+      return { category, currentValue, comparedValue, diff: currentValue - comparedValue };
     })
   };
 }
 
 export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.settings.burdenRule) {
-  if (rule === "50:50") {
+  if (data.members.length === 0) return {};
+
+  if (rule === "fifty_fifty") {
     return Object.fromEntries(data.members.map((member) => [member.id, 1 / data.members.length]));
   }
 
-  if (rule === "任意割合") {
+  if (rule === "custom") {
     return data.settings.customShares;
   }
 
@@ -236,7 +232,7 @@ export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.
 }
 
 export function calculateSharedBurden(expense: Expense, data: BudgetData) {
-  if (expense.target !== "共有") {
+  if (expense.target !== "shared") {
     const member = data.members.find((item) => item.name === expense.payer);
     return Object.fromEntries(data.members.map((item) => [item.id, item.id === member?.id ? expense.amount : 0]));
   }

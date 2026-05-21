@@ -10,9 +10,6 @@ export function FormCard({ title, children }: FormCardProps) {
     <section className="rounded-lg border border-emerald-900/10 bg-white p-4 shadow-soft sm:p-5">
       <h2 className="text-lg font-bold tracking-normal text-ink">{title}</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">{children}</div>
-      <button className="mt-5 min-h-12 w-full rounded-lg bg-leaf px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-emerald-700 sm:w-auto">
-        登録する
-      </button>
     </section>
   );
 }

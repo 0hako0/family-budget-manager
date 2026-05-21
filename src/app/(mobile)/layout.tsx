@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { RealtimeRefresh } from "@/components/RealtimeRefresh";
+import { signOut } from "@/app/actions";
+import { getCurrentSession } from "@/lib/auth";
 
 const navItems = [
   { href: "/", label: "ホーム" },
@@ -11,17 +15,30 @@ const navItems = [
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function MobileLayout({ children }: { children: React.ReactNode }) {
+export default async function MobileLayout({ children }: { children: React.ReactNode }) {
+  const { user, membership, group } = await getCurrentSession();
+
+  if (!user) redirect("/login");
+  if (!membership) redirect("/setup");
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-[calc(10px+env(safe-area-inset-top))] sm:px-6">
+      <RealtimeRefresh householdGroupId={String(membership.household_group_id)} />
       <header className="sticky top-0 z-40 -mx-4 bg-cream/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
-        <div className="flex min-h-10 items-center justify-between">
-          <Link href="/" className="text-base font-black tracking-normal text-ink">
-            Family Budget
+        <div className="flex min-h-10 items-center justify-between gap-3">
+          <Link href="/" className="min-w-0 text-base font-black tracking-normal text-ink">
+            <span className="block truncate">{group?.name ?? "Family Budget"}</span>
           </Link>
-          <Link href="/expenses" className="min-h-10 rounded-full bg-leaf px-4 py-2 text-sm font-black text-white shadow-sm">
-            入力
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/expenses" className="min-h-10 rounded-full bg-leaf px-4 py-2 text-sm font-black text-white shadow-sm">
+              入力
+            </Link>
+            <form action={signOut}>
+              <button className="min-h-10 rounded-full bg-white px-3 py-2 text-xs font-black text-ink/65 shadow-sm" type="submit">
+                ログアウト
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 

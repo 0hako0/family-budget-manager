@@ -13,14 +13,15 @@ export type Category = {
   favorite?: boolean;
 };
 
-export type ExpenseTarget = "共有" | "自分のみ" | "パートナーのみ";
-export type BurdenRule = "50:50" | "任意割合" | "収入比率";
-export type CompareTarget = "先月" | "先々月" | "3か月平均" | "半年前" | "1年前同月";
+export type ExpenseTarget = "shared" | "self_only" | "partner_only";
+export type BurdenRule = "fifty_fifty" | "custom" | "income_ratio";
+export type CompareTarget = "last_month" | "two_months_ago" | "three_month_average" | "six_months_ago" | "same_month_last_year";
 
 export type HouseholdMember = {
   id: string;
+  userId?: string;
   name: string;
-  role: "自分" | "パートナー";
+  role: "owner" | "member";
   shareRatio: number;
 };
 
@@ -105,6 +106,9 @@ export type NotificationRule = {
 };
 
 export type BudgetData = {
+  householdGroupId?: string;
+  currentUserId?: string;
+  currentMemberId?: string;
   members: HouseholdMember[];
   settings: HouseholdSettings;
   categories: Category[];

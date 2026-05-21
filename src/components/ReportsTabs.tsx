@@ -9,11 +9,17 @@ import type { BudgetData, CompareTarget } from "@/lib/types";
 import { MetricCard } from "./MetricCard";
 
 const tabs = ["カテゴリ別", "月別推移", "比率", "年比較"] as const;
-const compareTargets: CompareTarget[] = ["先月", "先々月", "3か月平均", "半年前", "1年前同月"];
+const compareTargets: Array<{ value: CompareTarget; label: string }> = [
+  { value: "last_month", label: "先月" },
+  { value: "two_months_ago", label: "先々月" },
+  { value: "three_month_average", label: "3か月平均" },
+  { value: "six_months_ago", label: "半年前" },
+  { value: "same_month_last_year", label: "1年前同月" }
+];
 
 export function ReportsTabs({ data }: { data: BudgetData }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>("カテゴリ別");
-  const [target, setTarget] = useState<CompareTarget>("先月");
+  const [target, setTarget] = useState<CompareTarget>("last_month");
   const totals = getTotals(data);
   const currentSummary = createCurrentMonthlySummary(data);
   const comparison = getMonthlyComparison(data, target);
@@ -32,17 +38,12 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
     <div className="grid gap-5">
       <section>
         <h1 className="text-xl font-black text-ink">レポート</h1>
-        <p className="mt-1 text-sm text-ink/60">Supabaseに登録されたデータだけで集計します。</p>
+        <p className="mt-1 text-sm text-ink/60">家計の予算消化と月次比較を確認します。</p>
       </section>
 
       <div className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 shadow-sm">
         {tabs.map((item) => (
-          <button
-            key={item}
-            className={tab === item ? "min-h-11 rounded-xl bg-leaf text-xs font-black text-white" : "min-h-11 rounded-xl text-xs font-bold text-ink/60"}
-            type="button"
-            onClick={() => setTab(item)}
-          >
+          <button key={item} className={tab === item ? "min-h-11 rounded-xl bg-leaf text-xs font-black text-white" : "min-h-11 rounded-xl text-xs font-bold text-ink/60"} type="button" onClick={() => setTab(item)}>
             {item}
           </button>
         ))}
@@ -54,12 +55,6 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
           <div className="mt-3">
             <CategoryBudgetList items={getCategoryBudgetUsage(data).slice(0, 4)} />
           </div>
-          <details className="mt-3 rounded-2xl bg-cream/60 p-3">
-            <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-black text-leaf">もっと見る</summary>
-            <div className="mt-2">
-              <CategoryBudgetList items={getCategoryBudgetUsage(data).slice(4)} />
-            </div>
-          </details>
           {categoryData.length > 0 ? <CategoryPieChart data={categoryData} /> : null}
         </section>
       ) : null}
@@ -88,8 +83,8 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
         <section className="grid gap-4">
           <div className="grid grid-cols-2 gap-2">
             {compareTargets.map((item) => (
-              <button key={item} className={target === item ? "min-h-11 rounded-2xl bg-leaf text-sm font-black text-white" : "min-h-11 rounded-2xl bg-white text-sm font-bold text-ink"} onClick={() => setTarget(item)}>
-                {item}
+              <button key={item.value} className={target === item.value ? "min-h-11 rounded-2xl bg-leaf text-sm font-black text-white" : "min-h-11 rounded-2xl bg-white text-sm font-bold text-ink"} onClick={() => setTarget(item.value)}>
+                {item.label}
               </button>
             ))}
           </div>
@@ -97,14 +92,12 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
             <p className="text-sm font-bold text-leaf">月締めプレビュー</p>
             <p className="mt-2 text-3xl font-black text-ink">{currentSummary.month}</p>
             <p className="mt-1 text-sm text-ink/60">残額 {yen(currentSummary.remainingBudget)} / 着地 {yen(currentSummary.landingResult)}</p>
-            <textarea className="mt-3 min-h-20 w-full rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base outline-none focus:border-leaf" />
-            <button className="mt-3 min-h-12 w-full rounded-2xl bg-leaf text-base font-black text-white">この月を締める</button>
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <h2 className="text-base font-black text-ink">比較</h2>
             <div className="mt-3 grid gap-2">
               {comparison.rows.map((row) => (
-                <ComparisonRow key={row.label} label={row.label} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={target} />
+                <ComparisonRow key={row.label} label={row.label} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />
               ))}
             </div>
           </section>
@@ -113,7 +106,7 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
             {visibleCategoryRows.length === 0 ? <p className="mt-3 text-sm font-bold text-ink/60">まだカテゴリ別支出がありません</p> : null}
             <div className="mt-3 grid gap-2">
               {visibleCategoryRows.map((row) => (
-                <ComparisonRow key={row.category.id} label={`${row.category.icon} ${row.category.name}`} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={target} />
+                <ComparisonRow key={row.category.id} label={`${row.category.icon} ${row.category.name}`} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />
               ))}
             </div>
           </section>
