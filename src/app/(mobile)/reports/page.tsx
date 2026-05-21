@@ -1,6 +1,7 @@
 import { ReportsTabs } from "@/components/ReportsTabs";
-import { budgetData } from "@/lib/mock-data";
+import { getBudgetData } from "@/lib/data";
 
-export default function ReportsPage() {
-  return <ReportsTabs data={budgetData} />;
+export default async function ReportsPage() {
+  const data = await getBudgetData();
+  return <ReportsTabs data={data} />;
 }

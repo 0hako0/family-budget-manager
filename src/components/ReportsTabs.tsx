@@ -32,7 +32,7 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
     <div className="grid gap-5">
       <section>
         <h1 className="text-xl font-black text-ink">レポート</h1>
-        <p className="mt-1 text-sm text-ink/60">必要な情報だけ切り替えて確認します。</p>
+        <p className="mt-1 text-sm text-ink/60">Supabaseに登録されたデータだけで集計します。</p>
       </section>
 
       <div className="grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 shadow-sm">
@@ -60,14 +60,14 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
               <CategoryBudgetList items={getCategoryBudgetUsage(data).slice(4)} />
             </div>
           </details>
-          <CategoryPieChart data={categoryData} />
+          {categoryData.length > 0 ? <CategoryPieChart data={categoryData} /> : null}
         </section>
       ) : null}
 
       {tab === "月別推移" ? (
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
           <h2 className="text-base font-black text-ink">月別推移</h2>
-          <MonthlyTrendChart data={getMonthlyTrend(data)} />
+          {data.monthlySummaries.length > 0 ? <MonthlyTrendChart data={getMonthlyTrend(data)} /> : <p className="mt-3 text-sm font-bold text-ink/60">まだ月次履歴がありません</p>}
         </section>
       ) : null}
 
@@ -97,7 +97,7 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
             <p className="text-sm font-bold text-leaf">月締めプレビュー</p>
             <p className="mt-2 text-3xl font-black text-ink">{currentSummary.month}</p>
             <p className="mt-1 text-sm text-ink/60">残額 {yen(currentSummary.remainingBudget)} / 着地 {yen(currentSummary.landingResult)}</p>
-            <textarea className="mt-3 min-h-20 w-full rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base outline-none focus:border-leaf" placeholder="月締めメモ" />
+            <textarea className="mt-3 min-h-20 w-full rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base outline-none focus:border-leaf" />
             <button className="mt-3 min-h-12 w-full rounded-2xl bg-leaf text-base font-black text-white">この月を締める</button>
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
@@ -110,6 +110,7 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <h2 className="text-base font-black text-ink">カテゴリ別支出</h2>
+            {visibleCategoryRows.length === 0 ? <p className="mt-3 text-sm font-bold text-ink/60">まだカテゴリ別支出がありません</p> : null}
             <div className="mt-3 grid gap-2">
               {visibleCategoryRows.map((row) => (
                 <ComparisonRow key={row.category.id} label={`${row.category.icon} ${row.category.name}`} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={target} />

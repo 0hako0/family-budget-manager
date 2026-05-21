@@ -1,6 +1,7 @@
 import { ExpenseQuickEntry } from "@/components/ExpenseQuickEntry";
-import { budgetData } from "@/lib/mock-data";
+import { getBudgetData } from "@/lib/data";
 
-export default function ExpensesPage() {
-  return <ExpenseQuickEntry data={budgetData} />;
+export default async function ExpensesPage() {
+  const data = await getBudgetData();
+  return <ExpenseQuickEntry data={data} />;
 }

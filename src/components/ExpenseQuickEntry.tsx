@@ -13,7 +13,7 @@ export function ExpenseQuickEntry({ data }: { data: BudgetData }) {
   const favoriteCategories = categories.filter((category) => category.favorite).slice(0, 5);
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [date, setDate] = useState("2026-05-21");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [payer, setPayer] = useState(data.members[0]?.name ?? "");
   const [target, setTarget] = useState<ExpenseTarget>("共有");
   const [memo, setMemo] = useState("");
@@ -53,27 +53,31 @@ export function ExpenseQuickEntry({ data }: { data: BudgetData }) {
 
         <div className="mt-5">
           <p className="text-sm font-bold text-ink/65">よく使うカテゴリ</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {favoriteCategories.map((category) => {
-              const selected = category.id === categoryId;
-              return (
-                <button
-                  key={category.id}
-                  className={selected
-                    ? "min-h-16 rounded-2xl border-2 border-leaf bg-emerald-50 px-2 py-2 text-center text-xs font-black text-leaf"
-                    : "min-h-16 rounded-2xl border border-emerald-900/10 bg-cream/60 px-2 py-2 text-center text-xs font-bold text-ink"}
-                  type="button"
-                  onClick={() => {
-                    setCategoryId(category.id);
-                    setError("");
-                  }}
-                >
-                  <span className="block text-2xl">{category.icon}</span>
-                  {category.name}
-                </button>
-              );
-            })}
-          </div>
+          {favoriteCategories.length === 0 ? (
+            <p className="mt-2 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだカテゴリが登録されていません</p>
+          ) : (
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {favoriteCategories.map((category) => {
+                const selected = category.id === categoryId;
+                return (
+                  <button
+                    key={category.id}
+                    className={selected
+                      ? "min-h-16 rounded-2xl border-2 border-leaf bg-emerald-50 px-2 py-2 text-center text-xs font-black text-leaf"
+                      : "min-h-16 rounded-2xl border border-emerald-900/10 bg-cream/60 px-2 py-2 text-center text-xs font-bold text-ink"}
+                    type="button"
+                    onClick={() => {
+                      setCategoryId(category.id);
+                      setError("");
+                    }}
+                  >
+                    <span className="block text-2xl">{category.icon}</span>
+                    {category.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <label className="mt-4 grid gap-1 text-sm font-bold text-ink/65">
@@ -105,6 +109,7 @@ export function ExpenseQuickEntry({ data }: { data: BudgetData }) {
             <label className="grid gap-1 text-sm font-bold text-ink/65">
               支払者
               <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none focus:border-leaf" value={payer} onChange={(event) => setPayer(event.target.value)}>
+                <option value="">未選択</option>
                 {data.members.map((member) => <option key={member.id}>{member.name}</option>)}
               </select>
             </label>
@@ -116,7 +121,7 @@ export function ExpenseQuickEntry({ data }: { data: BudgetData }) {
                 <option>パートナーのみ</option>
               </select>
             </label>
-            <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none focus:border-leaf" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="メモ 例: スーパー" />
+            <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none focus:border-leaf" value={memo} onChange={(event) => setMemo(event.target.value)} />
           </div>
         </details>
 
@@ -129,6 +134,7 @@ export function ExpenseQuickEntry({ data }: { data: BudgetData }) {
       <MetricCard label="今月の変動費" value={yen(total)} tone="accent" />
 
       <ListSection title="直近の支出">
+        {recentExpenses.length === 0 ? <p className="text-sm font-bold text-ink/60">まだ登録されていません</p> : null}
         <MobileCards>
           {recentExpenses.map((expense) => {
             const burden = calculateSharedBurden(expense, data);
@@ -137,7 +143,7 @@ export function ExpenseQuickEntry({ data }: { data: BudgetData }) {
               <MobileCard key={expense.id} title={`${category?.icon ?? ""} ${category?.name ?? "未分類"}`} amount={yen(expense.amount)}>
                 <p>{expense.date} / {expense.payer} / {expense.target}</p>
                 <p>{expense.memo}</p>
-                <p>夫 {yen(burden["member-1"] ?? 0)} / 妻 {yen(burden["member-2"] ?? 0)}</p>
+                <p>自分 {yen(burden["member-1"] ?? 0)} / パートナー {yen(burden["member-2"] ?? 0)}</p>
               </MobileCard>
             );
           })}
@@ -152,7 +158,6 @@ export function ExpenseQuickEntry({ data }: { data: BudgetData }) {
             );
           })}
         </Table>
-        <button className="mt-4 min-h-11 w-full rounded-2xl border border-emerald-900/10 bg-cream/60 text-sm font-bold text-leaf">もっと見る</button>
       </ListSection>
 
       <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4 sm:hidden">

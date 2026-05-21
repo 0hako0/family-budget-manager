@@ -1,0 +1,3 @@
+-- Development seed file.
+-- Production schema intentionally does not insert sample or demo data.
+-- Add local-only INSERT statements here if you need development fixtures.

@@ -10,6 +10,14 @@ type Item = {
 };
 
 export function CategoryBudgetList({ items, compact = false }: { items: Item[]; compact?: boolean }) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg bg-cream/60 p-4 text-sm font-bold text-ink/60">
+        まだカテゴリ予算がありません
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-3">
       {items.map((item) => {

@@ -1,7 +1,7 @@
 import { getMonthBudgetPeriod } from "./date";
 import type { BudgetData, BurdenRule, CategoryKind, CompareTarget, Expense, MonthlySummary } from "./types";
 
-const appToday = new Date("2026-05-21T00:00:00+09:00");
+const appToday = new Date();
 
 export function sumBy<T>(items: T[], getValue: (item: T) => number) {
   return items.reduce((total, item) => total + getValue(item), 0);
@@ -135,12 +135,13 @@ export function getMonthlyTrend(data: BudgetData) {
 
 export function getComparisonSummary(data: BudgetData, target: CompareTarget) {
   const summaries = [...data.monthlySummaries].sort((a, b) => b.month.localeCompare(a.month));
-  if (target === "先月") return summaries.find((summary) => summary.month === "2026-04");
-  if (target === "先々月") return summaries.find((summary) => summary.month === "2026-03");
-  if (target === "半年前") return summaries.find((summary) => summary.month === "2025-11");
-  if (target === "1年前同月") return summaries.find((summary) => summary.month === "2025-05");
+  if (target === "先月") return summaries.find((summary) => summary.month === getShiftedMonthKey(-1));
+  if (target === "先々月") return summaries.find((summary) => summary.month === getShiftedMonthKey(-2));
+  if (target === "半年前") return summaries.find((summary) => summary.month === getShiftedMonthKey(-6));
+  if (target === "1年前同月") return summaries.find((summary) => summary.month === getShiftedMonthKey(-12));
 
-  const lastThree = summaries.filter((summary) => ["2026-04", "2026-03", "2026-02"].includes(summary.month));
+  const lastThreeKeys = [getShiftedMonthKey(-1), getShiftedMonthKey(-2), getShiftedMonthKey(-3)];
+  const lastThree = summaries.filter((summary) => lastThreeKeys.includes(summary.month));
   if (lastThree.length === 0) return undefined;
 
   return averageSummaries("3か月平均", lastThree);
@@ -171,6 +172,11 @@ function averageSummaries(month: string, summaries: MonthlySummary[]): MonthlySu
 
 function average(values: number[]) {
   return values.length === 0 ? 0 : sumBy(values, (value) => value) / values.length;
+}
+
+function getShiftedMonthKey(offset: number, referenceDate = appToday) {
+  const date = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + offset, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "先月") {

@@ -8,6 +8,9 @@ const navItems = [
   { href: "/settings", label: "設定" }
 ];
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-[calc(10px+env(safe-area-inset-top))] sm:px-6">

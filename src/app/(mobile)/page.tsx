@@ -2,17 +2,16 @@ import Link from "next/link";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { MetricCard } from "@/components/MetricCard";
 import { getCategoryBudgetUsage, getRemainingDays, getTotals } from "@/lib/budget";
+import { getBudgetData } from "@/lib/data";
 import { getMonthBudgetPeriod } from "@/lib/date";
 import { yen } from "@/lib/format";
-import { budgetData } from "@/lib/mock-data";
 
-const referenceDate = new Date("2026-05-21T00:00:00+09:00");
-
-export default function Home() {
-  const totals = getTotals(budgetData, referenceDate);
-  const remainingDays = getRemainingDays(referenceDate);
-  const period = getMonthBudgetPeriod(referenceDate);
-  const budgetUsage = getCategoryBudgetUsage(budgetData, referenceDate).slice(0, 3);
+export default async function Home() {
+  const data = await getBudgetData();
+  const totals = getTotals(data);
+  const remainingDays = getRemainingDays();
+  const period = getMonthBudgetPeriod();
+  const budgetUsage = getCategoryBudgetUsage(data).slice(0, 3);
 
   return (
     <div className="grid gap-5">
