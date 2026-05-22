@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { CategoryManager } from "@/components/CategoryManager";
-import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ListSection } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
-import { createInvitation } from "@/app/actions";
 import { getBudgetData } from "@/lib/data";
 
 const burdenLabels = {
@@ -12,7 +10,7 @@ const burdenLabels = {
   income_ratio: "収入比率"
 };
 
-export default async function SettingsPage({ searchParams }: { searchParams?: { invite?: string; inviteError?: string; categoryError?: string } }) {
+export default async function SettingsPage({ searchParams }: { searchParams?: { categoryError?: string } }) {
   const data = await getBudgetData();
 
   return (
@@ -27,23 +25,16 @@ export default async function SettingsPage({ searchParams }: { searchParams?: { 
         <MetricCard label="負担割合" value={burdenLabels[data.settings.burdenRule]} tone="accent" />
       </section>
 
-      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
-        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">パートナー招待</summary>
-        <form action={createInvitation} className="mt-3 grid gap-3">
-          <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
-          <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">
-            パートナーはログイン後、初回セットアップ画面でこの招待コードを入力すると参加できます。
-          </p>
-          <FormSubmitButton idleLabel="招待コードを表示" pendingLabel="表示中..." />
-          {searchParams?.invite ? (
-            <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-ink">
-              <p>招待コード</p>
-              <p className="mt-1 text-3xl font-black tracking-widest text-leaf">{searchParams.invite}</p>
-            </div>
-          ) : null}
-          {searchParams?.inviteError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.inviteError}</p> : null}
-        </form>
-      </details>
+      <section className="rounded-[22px] bg-white p-4 shadow-sm">
+        <h2 className="text-base font-black text-ink">パートナー招待</h2>
+        <p className="mt-2 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">
+          パートナーはログイン後、初回セットアップ画面でこの招待コードを入力すると参加できます。
+        </p>
+        <div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-ink">
+          <p>招待コード</p>
+          <p className="mt-1 text-3xl font-black tracking-widest text-leaf">{data.settings.inviteCode ?? "未発行"}</p>
+        </div>
+      </section>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">カテゴリ編集</summary>
@@ -53,7 +44,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: { 
         </div>
       </details>
 
-      <details className="rounded-[22px] bg-white p-4 shadow-sm">
+      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">メンバー管理</summary>
         <div className="mt-3 grid gap-2">
           {data.members.length === 0 ? <p className="text-sm font-bold text-ink/60">まだ登録されていません</p> : null}

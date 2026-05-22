@@ -1,4 +1,4 @@
-import { createFixedCost } from "@/app/actions";
+import { createFixedCost, deleteFixedCost } from "@/app/actions";
 import { Field, FormCard, inputClass } from "@/components/FormCard";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ListSection, Table, Td } from "@/components/ListSection";
@@ -12,7 +12,7 @@ export default async function FixedCostsPage({ searchParams }: { searchParams?: 
   const data = await getBudgetData();
   const total = data.fixedCosts.reduce((sum, cost) => sum + cost.amount, 0);
   const reviewTargets = data.fixedCosts.filter((cost) => cost.reviewTarget);
-  const fixedCategories = data.categories.filter((category) => category.kind === "fixed_cost");
+  const categories = data.categories.filter((category) => category.kind === "fixed_cost");
 
   return (
     <div className="grid gap-5">
@@ -30,29 +30,8 @@ export default async function FixedCostsPage({ searchParams }: { searchParams?: 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">固定費を登録</summary>
         <div className="mt-3">
-          <FormCard title="入力">
-            <form action={createFixedCost} className="contents">
-              <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
-              <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
-              <Field label="名称"><input className={inputClass} name="name" required /></Field>
-              <Field label="金額"><input className={inputClass} name="amount" type="number" inputMode="numeric" required /></Field>
-              <Field label="支払日"><input className={inputClass} name="paidOn" type="number" inputMode="numeric" min={1} max={31} defaultValue={1} /></Field>
-              <Field label="支払者"><input className={inputClass} name="payer" defaultValue={data.members[0]?.name ?? ""} /></Field>
-              <Field label="カテゴリ">
-                <select className={inputClass} name="categoryId" defaultValue="">
-                  <option value="">未選択</option>
-                  {fixedCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </Field>
-              <Field label="見直しメモ"><input className={inputClass} name="reviewMemo" /></Field>
-              <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-cream/60 px-3 text-sm font-bold text-ink">
-                <input name="reviewTarget" type="checkbox" />
-                見直し対象にする
-              </label>
-              {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
-              <FormSubmitButton />
-            </form>
-          </FormCard>
+          <FixedCostForm categories={categories} householdGroupId={data.householdGroupId} memberId={data.currentMemberId} payer={data.members[0]?.name ?? ""} />
+          {searchParams?.error ? <p className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
         </div>
       </details>
 
@@ -74,25 +53,53 @@ export default async function FixedCostsPage({ searchParams }: { searchParams?: 
       <ListSection title="固定費一覧">
         {data.fixedCosts.length === 0 ? <p className="text-sm font-bold text-ink/60">まだ登録されていません</p> : null}
         <MobileCards>
-          {data.fixedCosts.slice(0, 5).map((cost) => (
+          {data.fixedCosts.slice(0, 8).map((cost) => (
             <MobileCard key={cost.id} title={cost.name} amount={yen(cost.amount)}>
               <p>{getCategory(data, cost.categoryId)?.name ?? "未分類"} / {cost.paidOn}日 / {cost.payer}</p>
               {cost.reviewMemo ? <p>{cost.reviewMemo}</p> : null}
+              <details className="mt-2 rounded-xl bg-white p-3">
+                <summary className="min-h-10 cursor-pointer list-none text-xs font-bold text-leaf">編集</summary>
+                <FixedCostForm categories={categories} householdGroupId={data.householdGroupId} memberId={data.currentMemberId} cost={cost} payer={cost.payer} compact />
+              </details>
+              <form action={deleteFixedCost}>
+                <input type="hidden" name="id" value={cost.id} />
+                <button className="mt-2 min-h-10 rounded-xl bg-red-50 px-3 text-xs font-bold text-warn transition active:scale-[0.98]" type="submit">削除</button>
+              </form>
             </MobileCard>
           ))}
         </MobileCards>
-        <Table headers={["名称", "金額", "支払日", "カテゴリ", "メモ"]}>
-          {data.fixedCosts.map((cost) => (
-            <tr key={cost.id}>
-              <Td>{cost.name}</Td>
-              <Td>{yen(cost.amount)}</Td>
-              <Td>{cost.paidOn}日</Td>
-              <Td>{getCategory(data, cost.categoryId)?.name ?? "未分類"}</Td>
-              <Td>{cost.reviewMemo ?? ""}</Td>
-            </tr>
-          ))}
-        </Table>
+        <Table headers={["名称", "金額", "支払日", "カテゴリ", "メモ"]}>{data.fixedCosts.map((cost) => <tr key={cost.id}><Td>{cost.name}</Td><Td>{yen(cost.amount)}</Td><Td>{cost.paidOn}日</Td><Td>{getCategory(data, cost.categoryId)?.name ?? "未分類"}</Td><Td>{cost.reviewMemo ?? ""}</Td></tr>)}</Table>
       </ListSection>
     </div>
+  );
+}
+
+function FixedCostForm({ categories, householdGroupId, memberId, payer, cost, compact = false }: {
+  categories: Array<{ id: string; name: string }>;
+  householdGroupId?: string;
+  memberId?: string;
+  payer: string;
+  compact?: boolean;
+  cost?: { id: string; name: string; amount: number; paidOn: number; payer: string; categoryId: string; reviewTarget: boolean; reviewMemo?: string };
+}) {
+  return (
+    <FormCard title={compact ? "編集" : "入力"}>
+      <form action={createFixedCost} className="contents">
+        <input type="hidden" name="id" value={cost?.id ?? ""} />
+        <input type="hidden" name="householdGroupId" value={householdGroupId ?? ""} />
+        <input type="hidden" name="memberId" value={memberId ?? ""} />
+        <Field label="名称"><input className={inputClass} name="name" defaultValue={cost?.name ?? ""} required /></Field>
+        <Field label="金額"><input className={inputClass} name="amount" type="number" inputMode="numeric" defaultValue={cost?.amount ?? ""} required /></Field>
+        <Field label="支払日"><input className={inputClass} name="paidOn" type="number" inputMode="numeric" min={1} max={31} defaultValue={cost?.paidOn ?? 1} /></Field>
+        <Field label="支払者"><input className={inputClass} name="payer" defaultValue={payer} /></Field>
+        <Field label="カテゴリ"><select className={inputClass} name="categoryId" defaultValue={cost?.categoryId ?? ""}><option value="">未選択</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
+        <Field label="見直しメモ"><input className={inputClass} name="reviewMemo" defaultValue={cost?.reviewMemo ?? ""} /></Field>
+        <label className="flex min-h-11 items-center gap-3 rounded-2xl bg-cream/60 px-3 text-sm font-bold text-ink">
+          <input name="reviewTarget" type="checkbox" defaultChecked={cost?.reviewTarget ?? false} />
+          見直し対象にする
+        </label>
+        <FormSubmitButton idleLabel={cost ? "更新する" : "登録する"} pendingLabel="保存中..." />
+      </form>
+    </FormCard>
   );
 }

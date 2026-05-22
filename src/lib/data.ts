@@ -27,9 +27,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return emptyBudgetData;
-  }
+  if (!user) return emptyBudgetData;
 
   const { data: membership } = await supabase
     .from("household_members")
@@ -39,9 +37,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     .limit(1)
     .maybeSingle();
 
-  if (!membership) {
-    return { ...emptyBudgetData, currentUserId: user.id };
-  }
+  if (!membership) return { ...emptyBudgetData, currentUserId: user.id };
 
   const groupId = String(membership.household_group_id);
   const [
@@ -81,6 +77,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     members,
     settings: {
       groupName: String(groupResult.data?.name ?? "未設定"),
+      inviteCode: groupResult.data?.invite_code ? String(groupResult.data.invite_code) : undefined,
       burdenRule: mapBurdenRule(String(groupResult.data?.burden_rule ?? "fifty_fifty")),
       customShares: Object.fromEntries(members.map((member) => [member.id, member.shareRatio]))
     },

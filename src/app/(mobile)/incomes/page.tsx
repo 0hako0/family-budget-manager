@@ -1,4 +1,4 @@
-import { createIncome } from "@/app/actions";
+import { createIncome, deleteIncome } from "@/app/actions";
 import { Field, FormCard, inputClass } from "@/components/FormCard";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ListSection, Table, Td } from "@/components/ListSection";
@@ -26,17 +26,50 @@ export default async function IncomesPage({ searchParams }: { searchParams?: { e
           <Field label="金額"><input className={inputClass} name="amount" type="number" inputMode="numeric" required /></Field>
           <Field label="入金日"><input className={inputClass} name="paidOn" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></Field>
           <Field label="収入者"><input className={inputClass} name="earner" defaultValue={data.members[0]?.name ?? ""} /></Field>
-          <Field label="カテゴリ"><select className={inputClass} name="categoryId" defaultValue=""><option value="">未選択</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
-          <Field label="毎月繰り返し"><select className={inputClass} name="recurring"><option value="true">あり</option><option value="false">なし</option></select></Field>
+          <Field label="カテゴリ"><CategorySelect categories={categories} /></Field>
+          <Field label="毎月繰り返し"><RecurringSelect /></Field>
           {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
           <FormSubmitButton />
         </form>
       </FormCard>
       <ListSection title="収入一覧">
         {data.incomes.length === 0 ? <p className="text-sm font-bold text-ink/60">まだ登録されていません</p> : null}
-        <MobileCards>{data.incomes.map((income) => <MobileCard key={income.id} title={income.name} amount={yen(income.amount)}><p>{income.paidOn} / {income.earner} / {getCategory(data, income.categoryId)?.name ?? "未分類"}</p></MobileCard>)}</MobileCards>
+        <MobileCards>
+          {data.incomes.map((income) => (
+            <MobileCard key={income.id} title={income.name} amount={yen(income.amount)}>
+              <p>{income.paidOn} / {income.earner} / {getCategory(data, income.categoryId)?.name ?? "未分類"}</p>
+              <details className="mt-2 rounded-xl bg-white p-3">
+                <summary className="min-h-10 cursor-pointer list-none text-xs font-bold text-leaf">編集</summary>
+                <form action={createIncome} className="mt-2 grid gap-2">
+                  <input type="hidden" name="id" value={income.id} />
+                  <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+                  <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
+                  <input className={inputClass} name="name" defaultValue={income.name} />
+                  <input className={inputClass} name="amount" type="number" inputMode="numeric" defaultValue={income.amount} />
+                  <input className={inputClass} name="paidOn" type="date" defaultValue={income.paidOn} />
+                  <input className={inputClass} name="earner" defaultValue={income.earner} />
+                  <CategorySelect categories={categories} defaultValue={income.categoryId} />
+                  <RecurringSelect defaultValue={String(income.recurring)} />
+                  <FormSubmitButton idleLabel="更新する" pendingLabel="更新中..." />
+                </form>
+              </details>
+              <form action={deleteIncome}>
+                <input type="hidden" name="id" value={income.id} />
+                <button className="mt-2 min-h-10 rounded-xl bg-red-50 px-3 text-xs font-bold text-warn transition active:scale-[0.98]" type="submit">削除</button>
+              </form>
+            </MobileCard>
+          ))}
+        </MobileCards>
         <Table headers={["収入名", "金額", "入金日", "収入者", "カテゴリ"]}>{data.incomes.map((income) => <tr key={income.id}><Td>{income.name}</Td><Td>{yen(income.amount)}</Td><Td>{income.paidOn}</Td><Td>{income.earner}</Td><Td>{getCategory(data, income.categoryId)?.name ?? "未分類"}</Td></tr>)}</Table>
       </ListSection>
     </div>
   );
+}
+
+function CategorySelect({ categories, defaultValue = "" }: { categories: Array<{ id: string; name: string }>; defaultValue?: string }) {
+  return <select className={inputClass} name="categoryId" defaultValue={defaultValue}><option value="">未選択</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>;
+}
+
+function RecurringSelect({ defaultValue = "true" }: { defaultValue?: string }) {
+  return <select className={inputClass} name="recurring" defaultValue={defaultValue}><option value="true">あり</option><option value="false">なし</option></select>;
 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { archiveCategory, saveCategory } from "@/app/actions";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import type { Category, CategoryKind } from "@/lib/types";
 import { inputClass } from "./FormCard";
 
@@ -26,6 +27,7 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
     () => initialCategories.filter((category) => !category.archived).sort((a, b) => a.kind.localeCompare(b.kind) || a.sortOrder - b.sortOrder),
     [initialCategories]
   );
+  const nextSortOrder = Math.max(0, ...initialCategories.filter((category) => category.kind === kind).map((category) => category.sortOrder)) + 1;
 
   function resetForm() {
     setEditing(null);
@@ -49,8 +51,6 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
     setFavorite(Boolean(category.favorite));
   }
 
-  const nextSortOrder = Math.max(0, ...initialCategories.filter((category) => category.kind === kind).map((category) => category.sortOrder)) + 1;
-
   return (
     <div className="grid gap-4">
       <form action={saveCategory} className="grid gap-3 rounded-2xl bg-cream/60 p-3">
@@ -59,11 +59,7 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
         <input type="hidden" name="sortOrder" value={editing?.sortOrder ?? nextSortOrder} />
         <h2 className="font-black text-ink">{editing ? "カテゴリ編集" : "カテゴリ追加"}</h2>
         <select className={inputClass} name="kind" value={kind} onChange={(event) => setKind(event.target.value as CategoryKind)}>
-          {Object.entries(kindLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
+          {Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <input className={inputClass} name="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="カテゴリ名" required />
         <div className="grid grid-cols-2 gap-3">
@@ -80,10 +76,8 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
           非表示にする
         </label>
         <div className="grid grid-cols-2 gap-2">
-          <button className="min-h-12 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white" type="submit">
-            {editing ? "更新する" : "追加する"}
-          </button>
-          <button className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base font-black text-ink" type="button" onClick={resetForm}>
+          <FormSubmitButton idleLabel={editing ? "更新する" : "追加する"} pendingLabel="保存中..." />
+          <button className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base font-black text-ink transition active:scale-[0.98]" type="button" onClick={resetForm}>
             クリア
           </button>
         </div>
@@ -91,27 +85,23 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
 
       <div className="grid gap-2">
         {visibleCategories.length === 0 ? <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだカテゴリがありません</p> : null}
-        {visibleCategories.slice(0, 10).map((category) => (
+        {visibleCategories.slice(0, 12).map((category) => (
           <div key={category.id} className="rounded-2xl bg-cream/60 p-3 text-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="grid h-10 w-10 place-items-center rounded-full" style={{ backgroundColor: `${category.color}22` }}>
-                  {category.icon}
-                </span>
+                <span className="grid h-10 w-10 place-items-center rounded-full" style={{ backgroundColor: `${category.color}22` }}>{category.icon}</span>
                 <div>
                   <p className="font-bold text-ink">{category.name}</p>
-                  <p className="text-xs text-ink/55">
-                    {kindLabels[category.kind]} / {category.hidden ? "非表示" : "表示中"}
-                  </p>
+                  <p className="text-xs text-ink/55">{kindLabels[category.kind]} / {category.hidden ? "非表示" : "表示中"}</p>
                 </div>
               </div>
-              <button className="min-h-11 rounded-full border border-emerald-900/10 px-3 text-xs font-bold text-leaf" type="button" onClick={() => editCategory(category)}>
+              <button className="min-h-11 rounded-full border border-emerald-900/10 px-3 text-xs font-bold text-leaf transition active:scale-[0.98]" type="button" onClick={() => editCategory(category)}>
                 編集
               </button>
             </div>
             <form action={archiveCategory} className="mt-3">
               <input type="hidden" name="id" value={category.id} />
-              <button className="min-h-10 w-full rounded-xl bg-red-50 text-xs font-bold text-warn" type="submit">
+              <button className="min-h-10 w-full rounded-xl bg-red-50 text-xs font-bold text-warn transition active:scale-[0.98]" type="submit">
                 アーカイブ
               </button>
             </form>

@@ -27,6 +27,7 @@ export type HouseholdMember = {
 
 export type HouseholdSettings = {
   groupName: string;
+  inviteCode?: string;
   burdenRule: BurdenRule;
   customShares: Record<string, number>;
 };

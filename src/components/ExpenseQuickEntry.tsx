@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createExpense } from "@/app/actions";
+import { createExpense, deleteExpense } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { calculateSharedBurden, getCategoriesByKind, getCategory } from "@/lib/budget";
 import { yen } from "@/lib/format";
@@ -180,6 +180,12 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 {data.members.map((member) => (
                   <p key={member.id}>{member.name}: {yen(burden[member.id] ?? 0)}</p>
                 ))}
+                <form action={deleteExpense}>
+                  <input type="hidden" name="id" value={expense.id} />
+                  <button className="mt-2 min-h-10 rounded-xl bg-red-50 px-3 text-xs font-bold text-warn transition active:scale-[0.98]" type="submit">
+                    削除
+                  </button>
+                </form>
               </MobileCard>
             );
           })}

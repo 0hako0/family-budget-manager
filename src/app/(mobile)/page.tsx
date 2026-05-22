@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { MetricCard } from "@/components/MetricCard";
-import { getCategoryBudgetUsage, getRemainingDays, getTotals } from "@/lib/budget";
+import { getCategoryBudgetUsage, getMemberBurdenShares, getRemainingDays, getTotals } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import { getMonthBudgetPeriod } from "@/lib/date";
 import { yen } from "@/lib/format";
@@ -12,6 +12,7 @@ export default async function Home() {
   const remainingDays = getRemainingDays();
   const period = getMonthBudgetPeriod();
   const budgetUsage = getCategoryBudgetUsage(data).slice(0, 3);
+  const shares = getMemberBurdenShares(data);
 
   return (
     <div className="grid gap-5">
@@ -30,7 +31,7 @@ export default async function Home() {
             <p className="mt-1 text-xl font-black">{totals.projectedLanding >= 0 ? "+" : ""}{yen(totals.projectedLanding)}</p>
           </div>
         </div>
-        <Link href="/expenses" className="mt-5 flex min-h-14 w-full items-center justify-center rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm">
+        <Link href="/expenses" prefetch className="mt-5 flex min-h-14 w-full items-center justify-center rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm transition active:scale-[0.98]">
           支出を入力
         </Link>
       </section>
@@ -38,10 +39,24 @@ export default async function Home() {
       <section className="rounded-[22px] bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-black text-ink">カテゴリ予算</h2>
-          <Link href="/reports" className="text-sm font-bold text-leaf">レポートへ</Link>
+          <Link href="/reports" prefetch className="text-sm font-bold text-leaf">レポートへ</Link>
         </div>
         <CategoryBudgetList items={budgetUsage} compact />
       </section>
+
+      {data.members.length > 0 ? (
+        <section className="rounded-[22px] bg-white p-4 shadow-sm">
+          <h2 className="text-base font-black text-ink">負担割合</h2>
+          <div className="mt-3 grid gap-2">
+            {data.members.map((member) => (
+              <div key={member.id} className="flex items-center justify-between rounded-2xl bg-cream/60 px-3 py-3 text-sm">
+                <span className="font-bold text-ink">{member.name}</span>
+                <strong className="text-leaf">{Math.round((shares[member.id] ?? member.shareRatio) * 100)}%</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">もっと見る</summary>

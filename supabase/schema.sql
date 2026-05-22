@@ -28,6 +28,7 @@ create table if not exists public.household_groups (
 
 alter table public.household_groups add column if not exists created_by uuid references auth.users(id) on delete set null;
 alter table public.household_groups add column if not exists invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+alter table public.household_groups alter column invite_code set default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 update public.household_groups
 set invite_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
 where invite_code is null;
@@ -280,9 +281,10 @@ begin
   set display_name = excluded.display_name,
       email = excluded.email;
 
-  insert into public.household_groups (name, burden_rule, created_by)
+  insert into public.household_groups (name, invite_code, burden_rule, created_by)
   values (
     coalesce(nullif(group_name, ''), 'わが家の家計'),
+    upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
     case
       when burden_rule_value in ('fifty_fifty', 'custom', 'income_ratio') then burden_rule_value
       else 'fifty_fifty'

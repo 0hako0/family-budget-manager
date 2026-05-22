@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { closeCurrentMonth } from "@/app/actions";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { CategoryPieChart, MonthlyTrendChart, RatioBarChart } from "@/components/Charts";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { createCurrentMonthlySummary, getCategory, getCategoryBudgetUsage, getMonthlyComparison, getMonthlyTrend, getTotals, groupExpensesByCategory } from "@/lib/budget";
 import { percent, yen } from "@/lib/format";
 import type { BudgetData, CompareTarget } from "@/lib/types";
@@ -92,6 +94,11 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
             <p className="text-sm font-bold text-leaf">月締めプレビュー</p>
             <p className="mt-2 text-3xl font-black text-ink">{currentSummary.month}</p>
             <p className="mt-1 text-sm text-ink/60">残額 {yen(currentSummary.remainingBudget)} / 着地 {yen(currentSummary.landingResult)}</p>
+            <form action={closeCurrentMonth} className="mt-3 grid gap-3">
+              <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+              <textarea className="min-h-20 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base outline-none transition focus:border-leaf" name="memo" placeholder="今月のメモ" />
+              <FormSubmitButton idleLabel="この月を締める" pendingLabel="保存中..." />
+            </form>
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <h2 className="text-base font-black text-ink">比較</h2>
