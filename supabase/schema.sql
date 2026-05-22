@@ -40,6 +40,19 @@ create table if not exists public.household_members (
 );
 
 alter table public.household_members drop constraint if exists household_members_role_check;
+update public.household_members
+set role = case
+  when role = 'self' then 'owner'
+  when role = 'partner' then 'member'
+  when role in ('owner', 'member') then role
+  else 'member'
+end
+where role is distinct from case
+  when role = 'self' then 'owner'
+  when role = 'partner' then 'member'
+  when role in ('owner', 'member') then role
+  else 'member'
+end;
 alter table public.household_members add constraint household_members_role_check check (role in ('owner', 'member'));
 
 create table if not exists public.household_invitations (
@@ -252,7 +265,18 @@ drop policy if exists "Users can join household members as themselves" on public
 create policy "Users can join household members as themselves" on public.household_members
 for insert
 to authenticated
-with check (user_id = auth.uid());
+with check (
+  user_id = auth.uid()
+  and (
+    public.is_household_member(household_group_id)
+    or exists (
+      select 1
+      from public.household_groups
+      where id = household_group_id
+        and created_by = auth.uid()
+    )
+  )
+);
 drop policy if exists "owners can manage members" on public.household_members;
 create policy "owners can manage members" on public.household_members for update to authenticated using (public.is_household_owner(household_group_id)) with check (public.is_household_owner(household_group_id));
 
