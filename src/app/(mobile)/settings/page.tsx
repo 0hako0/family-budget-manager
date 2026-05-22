@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { CategoryManager } from "@/components/CategoryManager";
-import { Field, inputClass } from "@/components/FormCard";
 import { ListSection } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
 import { createInvitation } from "@/app/actions";
@@ -14,13 +13,12 @@ const burdenLabels = {
 
 export default async function SettingsPage({ searchParams }: { searchParams?: { invite?: string; inviteError?: string; categoryError?: string } }) {
   const data = await getBudgetData();
-  const inviteUrl = searchParams?.invite ? `/join?code=${searchParams.invite}` : "";
 
   return (
     <div className="grid gap-5">
       <section>
         <h1 className="text-xl font-black text-ink">設定</h1>
-        <p className="mt-1 text-sm text-ink/60">共有メンバー、招待、カテゴリを管理します。</p>
+        <p className="mt-1 text-sm text-ink/60">共有メンバー、招待コード、カテゴリを管理します。</p>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
@@ -32,16 +30,16 @@ export default async function SettingsPage({ searchParams }: { searchParams?: { 
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">パートナー招待</summary>
         <form action={createInvitation} className="mt-3 grid gap-3">
           <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
-          <Field label="パートナーのメール（任意）">
-            <input className={inputClass} type="email" name="email" placeholder="partner@example.com" />
-          </Field>
+          <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">
+            パートナーはログイン後、初回セットアップ画面でこの招待コードを入力すると参加できます。
+          </p>
           <button className="min-h-12 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm" type="submit">
-            招待コードを作成
+            招待コードを表示
           </button>
           {searchParams?.invite ? (
-            <div className="rounded-2xl bg-emerald-50 p-3 text-sm font-bold text-ink">
-              <p>招待コード: <span className="text-leaf">{searchParams.invite}</span></p>
-              <p className="mt-1">招待URL: {inviteUrl}</p>
+            <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-ink">
+              <p>招待コード</p>
+              <p className="mt-1 text-3xl font-black tracking-widest text-leaf">{searchParams.invite}</p>
             </div>
           ) : null}
           {searchParams?.inviteError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.inviteError}</p> : null}

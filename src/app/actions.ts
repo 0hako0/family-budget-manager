@@ -103,7 +103,7 @@ export async function joinInvitation(formData: FormData) {
     share_ratio_value: shareRatio
   });
 
-  if (error) redirect(`/join?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/setup?joinError=${encodeURIComponent(error.message)}`);
   redirect("/");
 }
 
