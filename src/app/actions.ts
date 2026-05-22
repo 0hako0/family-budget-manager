@@ -60,49 +60,33 @@ export async function signOut() {
 
 export async function setupHousehold(formData: FormData) {
   const { supabase, user } = await requireUser();
-  const groupId = crypto.randomUUID();
   const groupName = value(formData, "groupName") || "わが家の家計";
   const displayName = value(formData, "displayName") || user.email || "自分";
   const burdenRule = value(formData, "burdenRule") || "fifty_fifty";
   const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
 
-  const { error: profileError } = await supabase
-    .from("users")
-    .upsert({ id: user.id, email: user.email ?? "", display_name: displayName });
-  if (profileError) redirect(`/setup?error=${encodeURIComponent(profileError.message)}`);
-
-  const { error: groupError } = await supabase
-    .from("household_groups")
-    .insert({ id: groupId, name: groupName, burden_rule: burdenRule, created_by: user.id });
-
-  if (groupError) redirect(`/setup?error=${encodeURIComponent(groupError.message)}`);
-
-  const { error: memberError } = await supabase.from("household_members").insert({
-    household_group_id: groupId,
-    user_id: user.id,
+  const { error } = await supabase.rpc("create_household_group", {
+    group_name: groupName,
     display_name: displayName,
-    role: "owner",
-    custom_share_ratio: shareRatio
+    burden_rule_value: burdenRule,
+    share_ratio_value: shareRatio
   });
 
-  if (memberError) redirect(`/setup?error=${encodeURIComponent(memberError.message)}`);
+  if (error) redirect(`/setup?error=${encodeURIComponent(error.message)}`);
   redirect("/");
 }
 
 export async function createInvitation(formData: FormData) {
-  const { supabase, user } = await requireUser();
+  const { supabase } = await requireUser();
   const groupId = value(formData, "householdGroupId");
-  const code = crypto.randomUUID().slice(0, 8).toUpperCase();
-
-  const { error } = await supabase.from("household_invitations").insert({
-    household_group_id: groupId,
-    code,
-    invited_email: value(formData, "email") || null,
-    created_by: user.id,
-    expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString()
-  });
+  const { data, error } = await supabase
+    .from("household_groups")
+    .select("invite_code")
+    .eq("id", groupId)
+    .maybeSingle();
 
   if (error) redirect(`/settings?inviteError=${encodeURIComponent(error.message)}`);
+  const code = String(data?.invite_code ?? "");
   revalidatePath("/settings");
   redirect(`/settings?invite=${code}`);
 }
@@ -113,28 +97,13 @@ export async function joinInvitation(formData: FormData) {
   const displayName = value(formData, "displayName") || user.email || "パートナー";
   const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
 
-  const { data: invitation, error: invitationError } = await supabase
-    .from("household_invitations")
-    .select("*")
-    .eq("code", code)
-    .is("used_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
-
-  if (invitationError || !invitation) redirect(`/join?error=${encodeURIComponent("招待コードが無効、または期限切れです")}`);
-
-  await supabase.from("users").upsert({ id: user.id, email: user.email ?? "", display_name: displayName });
-
-  const { error: memberError } = await supabase.from("household_members").insert({
-    household_group_id: invitation.household_group_id,
-    user_id: user.id,
+  const { error } = await supabase.rpc("join_household_by_invite_code", {
+    code,
     display_name: displayName,
-    role: "member",
-    custom_share_ratio: shareRatio
+    share_ratio_value: shareRatio
   });
 
-  if (memberError) redirect(`/join?error=${encodeURIComponent(memberError.message)}`);
-  await supabase.from("household_invitations").update({ used_at: new Date().toISOString() }).eq("id", invitation.id);
+  if (error) redirect(`/join?error=${encodeURIComponent(error.message)}`);
   redirect("/");
 }
 

@@ -19,6 +19,7 @@ create table if not exists public.users (
 create table if not exists public.household_groups (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
   burden_rule text not null default 'fifty_fifty' check (burden_rule in ('fifty_fifty', 'custom', 'income_ratio')),
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -26,6 +27,10 @@ create table if not exists public.household_groups (
 );
 
 alter table public.household_groups add column if not exists created_by uuid references auth.users(id) on delete set null;
+alter table public.household_groups add column if not exists invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+update public.household_groups
+set invite_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
+where invite_code is null;
 
 create table if not exists public.household_members (
   id uuid primary key default gen_random_uuid(),
@@ -246,6 +251,99 @@ as $$
   );
 $$;
 
+create or replace function public.create_household_group(
+  group_name text,
+  display_name text,
+  burden_rule_value text default 'fifty_fifty',
+  share_ratio_value numeric default 0.5
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  current_email text;
+  new_group_id uuid;
+  new_invite_code text;
+begin
+  if current_user_id is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select email into current_email from auth.users where id = current_user_id;
+
+  insert into public.users (id, email, display_name)
+  values (current_user_id, coalesce(current_email, ''), display_name)
+  on conflict (id) do update
+  set display_name = excluded.display_name,
+      email = excluded.email;
+
+  insert into public.household_groups (name, burden_rule, created_by)
+  values (
+    coalesce(nullif(group_name, ''), 'わが家の家計'),
+    case
+      when burden_rule_value in ('fifty_fifty', 'custom', 'income_ratio') then burden_rule_value
+      else 'fifty_fifty'
+    end,
+    current_user_id
+  )
+  returning id, invite_code into new_group_id, new_invite_code;
+
+  insert into public.household_members (household_group_id, user_id, display_name, role, custom_share_ratio)
+  values (
+    new_group_id,
+    current_user_id,
+    coalesce(nullif(display_name, ''), '自分'),
+    'owner',
+    least(1, greatest(0, coalesce(share_ratio_value, 0.5)))
+  )
+  on conflict (household_group_id, user_id) do nothing;
+
+  return new_invite_code;
+end;
+$$;
+
+create or replace function public.join_household_by_invite_code(
+  code text,
+  display_name text,
+  share_ratio_value numeric default 0.5
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  current_email text;
+begin
+  if current_user_id is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select email into current_email from auth.users where id = current_user_id;
+
+  insert into public.users (id, email, display_name)
+  values (current_user_id, coalesce(current_email, ''), display_name)
+  on conflict (id) do update
+  set display_name = excluded.display_name,
+      email = excluded.email;
+
+  insert into public.household_members (household_group_id, user_id, display_name, role, custom_share_ratio)
+  select
+    id,
+    current_user_id,
+    coalesce(nullif(display_name, ''), 'パートナー'),
+    'member',
+    least(1, greatest(0, coalesce(share_ratio_value, 0.5)))
+  from public.household_groups
+  where invite_code = upper(trim(code))
+  on conflict (household_group_id, user_id) do nothing;
+end;
+$$;
+
 drop policy if exists "users can read self" on public.users;
 create policy "users can read self" on public.users for select to authenticated using (id = auth.uid());
 drop policy if exists "users can upsert self" on public.users;
@@ -295,6 +393,9 @@ drop policy if exists "owners can create invitations" on public.household_invita
 create policy "owners can create invitations" on public.household_invitations for insert to authenticated with check (public.is_household_owner(household_group_id));
 drop policy if exists "invite users can update invitations" on public.household_invitations;
 create policy "invite users can update invitations" on public.household_invitations for update to authenticated using (used_at is null and expires_at > now()) with check (true);
+
+grant execute on function public.create_household_group(text, text, text, numeric) to authenticated;
+grant execute on function public.join_household_by_invite_code(text, text, numeric) to authenticated;
 
 drop policy if exists "household data select" on public.categories;
 create policy "household data select" on public.categories for select to authenticated using (public.is_household_member(household_group_id));
