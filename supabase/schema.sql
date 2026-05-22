@@ -232,6 +232,20 @@ as $$
   );
 $$;
 
+create or replace function public.is_household_creator(group_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.household_groups
+    where id = group_id
+      and created_by = auth.uid()
+  );
+$$;
+
 drop policy if exists "users can read self" on public.users;
 create policy "users can read self" on public.users for select to authenticated using (id = auth.uid());
 drop policy if exists "users can upsert self" on public.users;
@@ -244,7 +258,7 @@ drop policy if exists "Users can view their household groups" on public.househol
 create policy "Users can view their household groups" on public.household_groups
 for select
 to authenticated
-using (public.is_household_member(id));
+using (public.is_household_member(id) or created_by = auth.uid());
 drop policy if exists "authenticated can create groups" on public.household_groups;
 drop policy if exists "Users can create household groups" on public.household_groups;
 create policy "Users can create household groups" on public.household_groups
@@ -269,12 +283,7 @@ with check (
   user_id = auth.uid()
   and (
     public.is_household_member(household_group_id)
-    or exists (
-      select 1
-      from public.household_groups
-      where id = household_group_id
-        and created_by = auth.uid()
-    )
+    or public.is_household_creator(household_group_id)
   )
 );
 drop policy if exists "owners can manage members" on public.household_members;
