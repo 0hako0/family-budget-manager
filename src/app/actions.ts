@@ -17,9 +17,13 @@ function numberValue(formData: FormData, key: string, fallback = 0) {
 async function requireUser() {
   const supabase = createServerSupabaseClient();
   const {
+    data: { session }
+  } = await supabase.auth.getSession();
+  const {
     data: { user }
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+
+  if (!session || !user) redirect("/login?error=ログイン状態を確認できませんでした。もう一度ログインしてください");
   return { supabase, user };
 }
 
@@ -56,26 +60,25 @@ export async function signOut() {
 
 export async function setupHousehold(formData: FormData) {
   const { supabase, user } = await requireUser();
+  const groupId = crypto.randomUUID();
   const groupName = value(formData, "groupName") || "わが家の家計";
   const displayName = value(formData, "displayName") || user.email || "自分";
   const burdenRule = value(formData, "burdenRule") || "fifty_fifty";
   const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
-
-  const { data: group, error: groupError } = await supabase
-    .from("household_groups")
-    .insert({ name: groupName, burden_rule: burdenRule })
-    .select("id")
-    .single();
-
-  if (groupError || !group) redirect(`/setup?error=${encodeURIComponent(groupError?.message ?? "家計グループを作成できませんでした")}`);
 
   const { error: profileError } = await supabase
     .from("users")
     .upsert({ id: user.id, email: user.email ?? "", display_name: displayName });
   if (profileError) redirect(`/setup?error=${encodeURIComponent(profileError.message)}`);
 
+  const { error: groupError } = await supabase
+    .from("household_groups")
+    .insert({ id: groupId, name: groupName, burden_rule: burdenRule, created_by: user.id });
+
+  if (groupError) redirect(`/setup?error=${encodeURIComponent(groupError.message)}`);
+
   const { error: memberError } = await supabase.from("household_members").insert({
-    household_group_id: group.id,
+    household_group_id: groupId,
     user_id: user.id,
     display_name: displayName,
     role: "owner",

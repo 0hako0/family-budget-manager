@@ -20,9 +20,12 @@ create table if not exists public.household_groups (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   burden_rule text not null default 'fifty_fifty' check (burden_rule in ('fifty_fifty', 'custom', 'income_ratio')),
+  created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.household_groups add column if not exists created_by uuid references auth.users(id) on delete set null;
 
 create table if not exists public.household_members (
   id uuid primary key default gen_random_uuid(),
@@ -224,16 +227,32 @@ drop policy if exists "users can update self" on public.users;
 create policy "users can update self" on public.users for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
 drop policy if exists "members can read groups" on public.household_groups;
-create policy "members can read groups" on public.household_groups for select to authenticated using (public.is_household_member(id));
+drop policy if exists "Users can view their household groups" on public.household_groups;
+create policy "Users can view their household groups" on public.household_groups
+for select
+to authenticated
+using (public.is_household_member(id));
 drop policy if exists "authenticated can create groups" on public.household_groups;
-create policy "authenticated can create groups" on public.household_groups for insert to authenticated with check (true);
+drop policy if exists "Users can create household groups" on public.household_groups;
+create policy "Users can create household groups" on public.household_groups
+for insert
+to authenticated
+with check (created_by = auth.uid());
 drop policy if exists "owners can update groups" on public.household_groups;
 create policy "owners can update groups" on public.household_groups for update to authenticated using (public.is_household_owner(id)) with check (public.is_household_owner(id));
 
 drop policy if exists "members can read members" on public.household_members;
-create policy "members can read members" on public.household_members for select to authenticated using (public.is_household_member(household_group_id) or user_id = auth.uid());
+drop policy if exists "Users can view household members in their groups" on public.household_members;
+create policy "Users can view household members in their groups" on public.household_members
+for select
+to authenticated
+using (public.is_household_member(household_group_id) or user_id = auth.uid());
 drop policy if exists "users can join households" on public.household_members;
-create policy "users can join households" on public.household_members for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists "Users can join household members as themselves" on public.household_members;
+create policy "Users can join household members as themselves" on public.household_members
+for insert
+to authenticated
+with check (user_id = auth.uid());
 drop policy if exists "owners can manage members" on public.household_members;
 create policy "owners can manage members" on public.household_members for update to authenticated using (public.is_household_owner(household_group_id)) with check (public.is_household_owner(household_group_id));
 
