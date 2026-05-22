@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "./supabase/server";
+import { cache } from "react";
 
-export async function getCurrentSession() {
+export const getCurrentSession = cache(async () => {
   const supabase = createServerSupabaseClient();
   const {
     data: { user }
@@ -24,4 +25,4 @@ export async function getCurrentSession() {
     : { data: null };
 
   return { supabase, user, membership, group };
-}
+});

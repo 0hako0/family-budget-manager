@@ -1,5 +1,6 @@
 import { createIncome } from "@/app/actions";
 import { Field, FormCard, inputClass } from "@/components/FormCard";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ListSection, Table, Td } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
 import { MobileCard, MobileCards } from "@/components/MobileCards";
@@ -28,7 +29,7 @@ export default async function IncomesPage({ searchParams }: { searchParams?: { e
           <Field label="カテゴリ"><select className={inputClass} name="categoryId" defaultValue=""><option value="">未選択</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
           <Field label="毎月繰り返し"><select className={inputClass} name="recurring"><option value="true">あり</option><option value="false">なし</option></select></Field>
           {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
-          <button className="min-h-12 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white" type="submit">登録する</button>
+          <FormSubmitButton />
         </form>
       </FormCard>
       <ListSection title="収入一覧">

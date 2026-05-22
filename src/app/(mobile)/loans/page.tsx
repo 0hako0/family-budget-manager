@@ -1,5 +1,6 @@
 import { createLoan } from "@/app/actions";
 import { Field, FormCard, inputClass } from "@/components/FormCard";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ListSection, Table, Td } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
 import { MobileCard, MobileCards } from "@/components/MobileCards";
@@ -31,7 +32,7 @@ export default async function LoansPage({ searchParams }: { searchParams?: { err
           <Field label="ボーナス払い"><select className={inputClass} name="hasBonusPayment"><option value="false">なし</option><option value="true">あり</option></select></Field>
           <Field label="メモ"><input className={inputClass} name="memo" /></Field>
           {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
-          <button className="min-h-12 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white" type="submit">登録する</button>
+          <FormSubmitButton />
         </form>
       </FormCard>
       <ListSection title="ローン一覧">

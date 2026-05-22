@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CategoryManager } from "@/components/CategoryManager";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ListSection } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
 import { createInvitation } from "@/app/actions";
@@ -33,9 +34,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: { 
           <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">
             パートナーはログイン後、初回セットアップ画面でこの招待コードを入力すると参加できます。
           </p>
-          <button className="min-h-12 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm" type="submit">
-            招待コードを表示
-          </button>
+          <FormSubmitButton idleLabel="招待コードを表示" pendingLabel="表示中..." />
           {searchParams?.invite ? (
             <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-ink">
               <p>招待コード</p>

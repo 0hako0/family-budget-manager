@@ -31,4 +31,10 @@ textarea,
 button,
 a {
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  cursor: pointer;
 }

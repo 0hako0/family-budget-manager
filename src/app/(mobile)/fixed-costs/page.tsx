@@ -1,5 +1,6 @@
 import { createFixedCost } from "@/app/actions";
 import { Field, FormCard, inputClass } from "@/components/FormCard";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ListSection, Table, Td } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
 import { MobileCard, MobileCards } from "@/components/MobileCards";
@@ -49,7 +50,7 @@ export default async function FixedCostsPage({ searchParams }: { searchParams?: 
                 見直し対象にする
               </label>
               {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
-              <button className="min-h-12 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white" type="submit">登録する</button>
+              <FormSubmitButton />
             </form>
           </FormCard>
         </div>

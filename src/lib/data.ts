@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerSupabaseClient } from "./supabase/server";
 import type { BudgetData, CategoryKind, ExpenseTarget, HouseholdMember } from "./types";
 
@@ -20,7 +21,7 @@ export const emptyBudgetData: BudgetData = {
   notificationRules: []
 };
 
-export async function getBudgetData(): Promise<BudgetData> {
+export const getBudgetData = cache(async (): Promise<BudgetData> => {
   const supabase = createServerSupabaseClient();
   const {
     data: { user }
@@ -158,7 +159,7 @@ export async function getBudgetData(): Promise<BudgetData> {
     })),
     notificationRules: []
   };
-}
+});
 
 function mapBurdenRule(value: string) {
   if (value === "custom") return "custom" as const;

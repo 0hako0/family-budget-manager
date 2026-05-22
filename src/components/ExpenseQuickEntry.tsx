@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createExpense } from "@/app/actions";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { calculateSharedBurden, getCategoriesByKind, getCategory } from "@/lib/budget";
 import { yen } from "@/lib/format";
 import type { BudgetData, ExpenseTarget } from "@/lib/types";
@@ -16,8 +17,8 @@ const targetLabels: Record<ExpenseTarget, string> = {
 };
 
 export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; errorMessage?: string }) {
-  const categories = getCategoriesByKind(data, "expense");
-  const favoriteCategories = categories.filter((category) => category.favorite).slice(0, 6);
+  const categories = useMemo(() => getCategoriesByKind(data, "expense"), [data]);
+  const favoriteCategories = useMemo(() => categories.filter((category) => category.favorite).slice(0, 6), [categories]);
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -27,7 +28,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [error, setError] = useState("");
 
   const recentExpenses = useMemo(() => data.expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3), [data.expenses]);
-  const total = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const total = useMemo(() => data.expenses.reduce((sum, expense) => sum + expense.amount, 0), [data.expenses]);
   const displayError = error || errorMessage;
 
   function validateForm() {
@@ -45,14 +46,25 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
 
   return (
     <div className="grid gap-5">
-      <form id="expense-entry-form" action={createExpense} onSubmit={(event) => { if (!validateForm()) event.preventDefault(); }} className="rounded-[18px] border border-leaf/15 bg-white p-5 shadow-soft">
+      <form
+        id="expense-entry-form"
+        action={async (formData) => {
+          await createExpense(formData);
+          setAmount("");
+          setMemo("");
+        }}
+        onSubmit={(event) => {
+          if (!validateForm()) event.preventDefault();
+        }}
+        className="rounded-[18px] border border-leaf/15 bg-white p-5 shadow-soft"
+      >
         <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
         <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
         <p className="text-sm font-bold text-leaf">支出入力</p>
         <label className="mt-3 grid gap-2">
           <span className="text-sm font-bold text-ink/65">金額</span>
           <input
-            className="min-h-16 w-full rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-4xl font-black text-ink outline-none focus:border-leaf focus:bg-white focus:ring-2 focus:ring-leaf/15"
+            className="min-h-16 w-full rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-4xl font-black text-ink outline-none transition focus:border-leaf focus:bg-white focus:ring-2 focus:ring-leaf/15"
             name="amount"
             type="number"
             inputMode="numeric"
@@ -74,9 +86,11 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 return (
                   <button
                     key={category.id}
-                    className={selected
-                      ? "min-h-16 rounded-2xl border-2 border-leaf bg-emerald-50 px-2 py-2 text-center text-xs font-black text-leaf"
-                      : "min-h-16 rounded-2xl border border-emerald-900/10 bg-cream/60 px-2 py-2 text-center text-xs font-bold text-ink"}
+                    className={
+                      selected
+                        ? "min-h-16 rounded-2xl border-2 border-leaf bg-emerald-50 px-2 py-2 text-center text-xs font-black text-leaf transition active:scale-[0.98]"
+                        : "min-h-16 rounded-2xl border border-emerald-900/10 bg-cream/60 px-2 py-2 text-center text-xs font-bold text-ink transition active:scale-[0.98]"
+                    }
                     type="button"
                     onClick={() => {
                       setCategoryId(category.id);
@@ -95,7 +109,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         <label className="mt-4 grid gap-1 text-sm font-bold text-ink/65">
           カテゴリ
           <select
-            className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none focus:border-leaf"
+            className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none transition focus:border-leaf"
             name="categoryId"
             value={categoryId}
             onChange={(event) => {
@@ -117,11 +131,11 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
           <div className="grid gap-3 pt-2">
             <label className="grid gap-1 text-sm font-bold text-ink/65">
               日付
-              <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+              <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </label>
             <label className="grid gap-1 text-sm font-bold text-ink/65">
               支払者
-              <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="payer" value={payer} onChange={(event) => setPayer(event.target.value)}>
+              <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="payer" value={payer} onChange={(event) => setPayer(event.target.value)}>
                 <option value="">未選択</option>
                 {data.members.map((member) => (
                   <option key={member.id}>{member.name}</option>
@@ -130,7 +144,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
             </label>
             <label className="grid gap-1 text-sm font-bold text-ink/65">
               対象
-              <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="target" value={target} onChange={(event) => setTarget(event.target.value as ExpenseTarget)}>
+              <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="target" value={target} onChange={(event) => setTarget(event.target.value as ExpenseTarget)}>
                 {Object.entries(targetLabels).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -138,14 +152,17 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 ))}
               </select>
             </label>
-            <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="メモ" />
+            <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="メモ" />
           </div>
         </details>
 
         {displayError ? <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{displayError}</p> : null}
-        <button className="mt-5 hidden min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft sm:block" type="submit">
-          登録する
-        </button>
+        <div className="mt-5 hidden sm:block">
+          <FormSubmitButton className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft transition active:scale-[0.98] disabled:bg-ink/20" />
+        </div>
+        <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4 sm:hidden">
+          <FormSubmitButton className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft transition active:scale-[0.98] disabled:bg-ink/20" />
+        </div>
       </form>
 
       <MetricCard label="今月の変動費" value={yen(total)} tone="accent" />
@@ -178,12 +195,6 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
           })}
         </Table>
       </ListSection>
-
-      <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4 sm:hidden">
-        <button className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft" type="submit" form="expense-entry-form">
-          登録する
-        </button>
-      </div>
     </div>
   );
 }
