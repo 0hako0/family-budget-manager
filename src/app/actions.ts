@@ -155,6 +155,7 @@ export async function createExpense(formData: FormData) {
     member_id: value(formData, "memberId") || null,
     amount,
     spent_on: value(formData, "date") || new Date().toISOString().slice(0, 10),
+    category: "other",
     category_id: categoryId,
     payer_name: value(formData, "payer"),
     target: value(formData, "target") || "shared",
@@ -182,6 +183,7 @@ export async function createIncome(formData: FormData) {
     amount,
     paid_on: value(formData, "paidOn") || new Date().toISOString().slice(0, 10),
     earner_name: value(formData, "earner"),
+    income_type: "other",
     category_id: value(formData, "categoryId") || null,
     recurring: value(formData, "recurring") !== "false"
   };
@@ -208,6 +210,7 @@ export async function createSaving(formData: FormData) {
     household_group_id: householdGroupId,
     name,
     amount,
+    saving_type: "other",
     category_id: value(formData, "categoryId") || null,
     recurring: value(formData, "recurring") !== "false"
   };
@@ -237,6 +240,7 @@ export async function createFixedCost(formData: FormData) {
     amount,
     paid_on: numberValue(formData, "paidOn", 1),
     payer_name: value(formData, "payer"),
+    category: "other",
     category_id: value(formData, "categoryId") || null,
     recurring: true,
     review_target: value(formData, "reviewTarget") === "on",
