@@ -16,6 +16,10 @@ function numberValue(formData: FormData, key: string, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function currentDateValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 async function requireUser() {
   const supabase = createServerSupabaseClient();
   const {
@@ -142,6 +146,7 @@ export async function closeCurrentMonth(formData: FormData) {
 
 export async function createExpense(formData: FormData) {
   const { supabase } = await requireUser();
+  const id = value(formData, "id");
   const amount = numberValue(formData, "amount");
   const householdGroupId = value(formData, "householdGroupId");
   const categoryId = value(formData, "categoryId");
@@ -150,17 +155,21 @@ export async function createExpense(formData: FormData) {
     redirect("/expenses?error=支出の金額とカテゴリを入力してください");
   }
 
-  const { error } = await supabase.from("expenses").insert({
+  const payload = {
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
     amount,
-    spent_on: value(formData, "date") || new Date().toISOString().slice(0, 10),
+    spent_on: value(formData, "date") || currentDateValue(),
     category: "other",
     category_id: categoryId,
     payer_name: value(formData, "payer"),
     target: value(formData, "target") || "shared",
     memo: value(formData, "memo")
-  });
+  };
+
+  const { error } = id
+    ? await supabase.from("expenses").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
+    : await supabase.from("expenses").insert(payload);
 
   if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
@@ -181,7 +190,7 @@ export async function createIncome(formData: FormData) {
     member_id: value(formData, "memberId") || null,
     name,
     amount,
-    paid_on: value(formData, "paidOn") || new Date().toISOString().slice(0, 10),
+    paid_on: value(formData, "paidOn") || currentDateValue(),
     earner_name: value(formData, "earner"),
     income_type: "other",
     category_id: value(formData, "categoryId") || null,
@@ -315,42 +324,49 @@ export async function saveCategory(formData: FormData) {
 
 export async function archiveCategory(formData: FormData) {
   const { supabase } = await requireUser();
-  await supabase.from("categories").update({ archived: true }).eq("id", value(formData, "id"));
+  const id = value(formData, "id");
+  const { error } = await supabase.from("categories").update({ archived: true }).eq("id", id);
+  if (error) redirect(`/settings?categoryError=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/settings");
 }
 
 export async function deleteExpense(formData: FormData) {
   const { supabase } = await requireUser();
-  await supabase.from("expenses").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("expenses").delete().eq("id", value(formData, "id"));
+  if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/expenses");
 }
 
 export async function deleteIncome(formData: FormData) {
   const { supabase } = await requireUser();
-  await supabase.from("incomes").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("incomes").delete().eq("id", value(formData, "id"));
+  if (error) redirect(`/incomes?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/incomes");
 }
 
 export async function deleteSaving(formData: FormData) {
   const { supabase } = await requireUser();
-  await supabase.from("savings").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("savings").delete().eq("id", value(formData, "id"));
+  if (error) redirect(`/savings?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/savings");
 }
 
 export async function deleteFixedCost(formData: FormData) {
   const { supabase } = await requireUser();
-  await supabase.from("fixed_costs").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("fixed_costs").delete().eq("id", value(formData, "id"));
+  if (error) redirect(`/fixed-costs?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/fixed-costs");
 }
 
 export async function deleteLoan(formData: FormData) {
   const { supabase } = await requireUser();
-  await supabase.from("loans").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("loans").delete().eq("id", value(formData, "id"));
+  if (error) redirect(`/loans?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/loans");
 }

@@ -100,6 +100,85 @@ create table if not exists public.category_budgets (
   unique (household_group_id, category_id, target_month)
 );
 
+create or replace function public.ensure_default_categories(group_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if group_id is null then
+    return;
+  end if;
+
+  if exists (select 1 from public.categories where household_group_id = group_id) then
+    return;
+  end if;
+
+  insert into public.categories (household_group_id, kind, name, icon, color, sort_order, favorite)
+  select group_id, 'expense', name, icon, color, sort_order, favorite
+  from (
+    values
+      ('食費', '🍚', '#2f8f6b', 1, true),
+      ('外食', '🍽️', '#e0984f', 2, true),
+      ('日用品', '🧴', '#4b8fbe', 3, true),
+      ('交通費', '🚃', '#5f7fd6', 4, false),
+      ('ガソリン', '⛽', '#b7791f', 5, false),
+      ('車', '🚗', '#607d8b', 6, false),
+      ('医療', '💊', '#d65f7f', 7, false),
+      ('美容', '✨', '#c06bcf', 8, false),
+      ('服', '👕', '#6f8bd6', 9, false),
+      ('趣味', '🎮', '#8a6fd6', 10, false),
+      ('交際費', '🤝', '#d68b6f', 11, false),
+      ('ペット', '🐾', '#7a9f52', 12, false),
+      ('コンビニ', '🏪', '#2d9cdb', 13, false),
+      ('カフェ', '☕', '#8b6f47', 14, false),
+      ('旅行', '✈️', '#38a6a5', 15, false),
+      ('プレゼント', '🎁', '#d65f9f', 16, false),
+      ('その他', '・', '#7a807a', 17, false)
+  ) as defaults(name, icon, color, sort_order, favorite);
+
+  insert into public.categories (household_group_id, kind, name, icon, color, sort_order)
+  select group_id, 'fixed_cost', name, icon, color, sort_order
+  from (
+    values
+      ('家賃', '🏠', '#2f8f6b', 1),
+      ('光熱費', '💡', '#e0a52f', 2),
+      ('通信費', '📱', '#4b8fbe', 3),
+      ('保険', '🛡️', '#607d8b', 4),
+      ('サブスク', '▶️', '#8a6fd6', 5),
+      ('車関連', '🚗', '#b7791f', 6),
+      ('税金', '📄', '#d65f7f', 7),
+      ('教育', '📚', '#5f7fd6', 8),
+      ('その他', '・', '#7a807a', 9)
+  ) as defaults(name, icon, color, sort_order);
+
+  insert into public.categories (household_group_id, kind, name, icon, color, sort_order)
+  select group_id, 'income', name, icon, color, sort_order
+  from (
+    values
+      ('給与', '💼', '#2f8f6b', 1),
+      ('副収入', '➕', '#4b8fbe', 2),
+      ('ボーナス', '🎉', '#e0a52f', 3),
+      ('臨時収入', '💰', '#7a9f52', 4),
+      ('その他', '・', '#7a807a', 5)
+  ) as defaults(name, icon, color, sort_order);
+
+  insert into public.categories (household_group_id, kind, name, icon, color, sort_order)
+  select group_id, 'saving', name, icon, color, sort_order
+  from (
+    values
+      ('貯金', '🏦', '#2f8f6b', 1),
+      ('NISA', '📈', '#4b8fbe', 2),
+      ('投資信託', '📊', '#5f7fd6', 3),
+      ('旅行積立', '✈️', '#38a6a5', 4),
+      ('車費用', '🚗', '#b7791f', 5),
+      ('特別費', '⭐', '#e0a52f', 6),
+      ('その他', '・', '#7a807a', 7)
+  ) as defaults(name, icon, color, sort_order);
+end;
+$$;
+
 create table if not exists public.incomes (
   id uuid primary key default gen_random_uuid(),
   household_group_id uuid not null references public.household_groups(id) on delete cascade,
@@ -303,6 +382,8 @@ begin
   )
   on conflict (household_group_id, user_id) do nothing;
 
+  perform public.ensure_default_categories(new_group_id);
+
   return new_invite_code;
 end;
 $$;
@@ -398,6 +479,7 @@ create policy "invite users can update invitations" on public.household_invitati
 
 grant execute on function public.create_household_group(text, text, text, numeric) to authenticated;
 grant execute on function public.join_household_by_invite_code(text, text, numeric) to authenticated;
+grant execute on function public.ensure_default_categories(uuid) to authenticated;
 
 drop policy if exists "household data select" on public.categories;
 create policy "household data select" on public.categories for select to authenticated using (public.is_household_member(household_group_id));
