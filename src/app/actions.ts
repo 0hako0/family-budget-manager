@@ -144,6 +144,58 @@ export async function closeCurrentMonth(formData: FormData) {
   revalidatePath("/reports");
 }
 
+export async function updateHouseholdSettings(formData: FormData) {
+  const { supabase } = await requireUser();
+  const householdGroupId = value(formData, "householdGroupId");
+  const groupName = value(formData, "groupName");
+  const iconUrl = value(formData, "iconUrl");
+  const burdenRule = value(formData, "burdenRule") || "fifty_fifty";
+
+  if (!householdGroupId || !groupName) {
+    redirect("/settings?settingsError=家計グループ名を入力してください");
+  }
+
+  const { error } = await supabase
+    .from("household_groups")
+    .update({
+      name: groupName,
+      icon_url: iconUrl || null,
+      burden_rule: ["fifty_fifty", "custom", "income_ratio"].includes(burdenRule) ? burdenRule : "fifty_fifty"
+    })
+    .eq("id", householdGroupId);
+
+  if (error) redirect(`/settings?settingsError=${encodeURIComponent(error.message)}`);
+  revalidatePath("/");
+  revalidatePath("/settings");
+  redirect("/settings?saved=household");
+}
+
+export async function updateHouseholdMember(formData: FormData) {
+  const { supabase } = await requireUser();
+  const id = value(formData, "id");
+  const displayName = value(formData, "displayName");
+  const role = value(formData, "role") === "owner" ? "owner" : "member";
+  const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
+
+  if (!id || !displayName) {
+    redirect("/settings?memberError=表示名を入力してください");
+  }
+
+  const { error } = await supabase
+    .from("household_members")
+    .update({
+      display_name: displayName,
+      custom_share_ratio: shareRatio,
+      role
+    })
+    .eq("id", id);
+
+  if (error) redirect(`/settings?memberError=${encodeURIComponent(error.message)}`);
+  revalidatePath("/");
+  revalidatePath("/settings");
+  redirect("/settings?saved=member");
+}
+
 export async function createExpense(formData: FormData) {
   const { supabase } = await requireUser();
   const id = value(formData, "id");

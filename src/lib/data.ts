@@ -78,6 +78,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     settings: {
       groupName: String(groupResult.data?.name ?? "未設定"),
       inviteCode: groupResult.data?.invite_code ? String(groupResult.data.invite_code) : undefined,
+      iconUrl: groupResult.data?.icon_url ? String(groupResult.data.icon_url) : undefined,
       burdenRule: mapBurdenRule(String(groupResult.data?.burden_rule ?? "fifty_fifty")),
       customShares: Object.fromEntries(members.map((member) => [member.id, member.shareRatio]))
     },
