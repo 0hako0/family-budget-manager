@@ -20,7 +20,9 @@ export default async function SetupPage({ searchParams }: { searchParams?: { err
       {!canUseSetup ? (
         <div className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-warn">
           ログイン状態を確認できませんでした。もう一度ログインしてください。
-          <Link className="mt-2 block text-leaf" href="/login">ログインへ戻る</Link>
+          <Link className="mt-2 block text-leaf" href="/login">
+            ログインへ戻る
+          </Link>
         </div>
       ) : null}
 
@@ -36,9 +38,9 @@ export default async function SetupPage({ searchParams }: { searchParams?: { err
           <option value="custom">任意割合</option>
           <option value="income_ratio">収入比率</option>
         </select>
-        <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="shareRatio" type="number" inputMode="numeric" min="0" max="100" defaultValue="50" placeholder="自分の負担割合 %" disabled={!canUseSetup} />
+        <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="shareRatio" type="number" inputMode="numeric" min="0" max="100" defaultValue="50" placeholder="自分の負担割合%" disabled={!canUseSetup} />
         {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
-        <button className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white disabled:bg-ink/20" type="submit" disabled={!canUseSetup}>
+        <button className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white transition active:scale-[0.98] disabled:bg-ink/20" type="submit" disabled={!canUseSetup}>
           家計を作成
         </button>
       </form>
@@ -50,9 +52,9 @@ export default async function SetupPage({ searchParams }: { searchParams?: { err
         </div>
         <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base uppercase outline-none focus:border-leaf" name="code" placeholder="招待コード" required disabled={!canUseSetup} />
         <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="displayName" placeholder="自分の名前" required disabled={!canUseSetup} />
-        <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="shareRatio" type="number" inputMode="numeric" min="0" max="100" defaultValue="50" placeholder="自分の負担割合 %" disabled={!canUseSetup} />
+        <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="shareRatio" type="number" inputMode="numeric" min="0" max="100" defaultValue="50" placeholder="自分の負担割合%" disabled={!canUseSetup} />
         {searchParams?.joinError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.joinError}</p> : null}
-        <button className="min-h-14 rounded-2xl border border-leaf bg-white px-4 py-3 text-base font-black text-leaf disabled:border-ink/20 disabled:text-ink/30" type="submit" disabled={!canUseSetup}>
+        <button className="min-h-14 rounded-2xl border border-leaf bg-white px-4 py-3 text-base font-black text-leaf transition active:scale-[0.98] disabled:border-ink/20 disabled:text-ink/30" type="submit" disabled={!canUseSetup}>
           参加する
         </button>
       </form>
