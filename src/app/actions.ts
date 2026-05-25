@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createCurrentMonthlySummary } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
+import { normalizeInviteCode } from "@/lib/invite-code";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { CategoryKind } from "@/lib/types";
 
@@ -50,14 +51,26 @@ export async function signIn(formData: FormData) {
 export async function signUp(formData: FormData) {
   const supabase = createServerSupabaseClient();
   const email = value(formData, "email");
+  const password = value(formData, "password");
   const displayName = value(formData, "displayName") || email;
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
-    password: value(formData, "password"),
+    password,
     options: { data: { display_name: displayName } }
   });
 
-  if (error) redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+  if (error) {
+    const message = error.message.toLowerCase().includes("rate limit")
+      ? "メール送信制限に達しました。Supabase Auth の Email Provider で Confirm email を OFF にしてください。"
+      : error.message;
+    redirect(`/signup?error=${encodeURIComponent(message)}`);
+  }
+  if (!data.session) {
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      redirect(`/signup?error=${encodeURIComponent("登録後ログインできませんでした。Supabase Auth の Confirm email を OFF にしてください。")}`);
+    }
+  }
   redirect("/setup");
 }
 
@@ -98,7 +111,7 @@ export async function createInvitation(formData: FormData) {
 
 export async function joinInvitation(formData: FormData) {
   const { supabase, user } = await requireUser();
-  const code = value(formData, "code").toUpperCase();
+  const code = normalizeInviteCode(value(formData, "code"));
   const displayName = value(formData, "displayName") || user.email || "パートナー";
   const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
 

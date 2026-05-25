@@ -33,7 +33,7 @@ npm run dev
 3. `.env.local` に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定します。
 4. Supabase SQL Editorで `supabase/schema.sql` を実行します。
 5. Authentication → Providers → Email を有効にします。
-6. ローカル確認を簡単にしたい場合は、Email confirmationをオフにしてください。本番では運用方針に合わせて確認メールを有効化してください。
+6. Email Provider の `Confirm email` は OFF にしてください。このアプリはメール確認、magic link、招待メールを使わず、メールアドレス + パスワード認証と家計コード共有で運用します。
 
 既存DBへ追加変更だけ反映したい場合は、`supabase/migrations/` のSQLを番号順に実行してください。
 

@@ -404,6 +404,7 @@ declare
   current_user_id uuid := auth.uid();
   current_email text;
   target_group_id uuid;
+  normalized_code text := upper(regexp_replace(coalesce(code, ''), '[^a-zA-Z0-9]', '', 'g'));
 begin
   if current_user_id is null then
     raise exception 'not authenticated';
@@ -411,7 +412,7 @@ begin
 
   select id into target_group_id
   from public.household_groups
-  where invite_code = upper(trim(code))
+  where invite_code = normalized_code
   limit 1;
 
   if target_group_id is null then

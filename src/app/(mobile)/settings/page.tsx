@@ -3,6 +3,7 @@ import { updateHouseholdMember, updateHouseholdSettings } from "@/app/actions";
 import { CategoryManager } from "@/components/CategoryManager";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { inputClass } from "@/components/FormCard";
+import { InviteCodeCard } from "@/components/InviteCodeCard";
 import { ListSection } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
 import { getBudgetData } from "@/lib/data";
@@ -105,14 +106,13 @@ export default async function SettingsPage({
         </div>
       </details>
 
-      <details className="rounded-[22px] bg-white p-4 shadow-sm">
-        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">パートナー招待</summary>
+      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">家計コード</summary>
         <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">
-          パートナーはログイン後、セットアップ画面でこの招待コードを入力すると同じ家計グループに参加できます。
+          このコードをパートナーに共有すると、同じ家計に参加できます。招待メールは送信しません。
         </p>
-        <div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-ink">
-          <p>招待コード</p>
-          <p className="mt-1 text-3xl font-black tracking-widest text-leaf">{data.settings.inviteCode ?? "未発行"}</p>
+        <div className="mt-3">
+          <InviteCodeCard code={data.settings.inviteCode} />
         </div>
       </details>
 
