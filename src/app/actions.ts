@@ -21,6 +21,17 @@ function currentDateValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function authErrorMessage(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("email not confirmed")) {
+    return "このアカウントは確認待ち状態です。再登録するか管理者に確認してください。";
+  }
+  if (lower.includes("rate limit")) {
+    return "メール送信制限に達しました。Supabase Auth の Email Provider で Confirm email を OFF にしてください。";
+  }
+  return message;
+}
+
 async function requireUser() {
   const supabase = createServerSupabaseClient();
   const {
@@ -44,7 +55,7 @@ export async function signIn(formData: FormData) {
     password: value(formData, "password")
   });
 
-  if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/login?error=${encodeURIComponent(authErrorMessage(error.message))}`);
   redirect("/");
 }
 
@@ -59,18 +70,15 @@ export async function signUp(formData: FormData) {
     options: { data: { display_name: displayName } }
   });
 
-  if (error) {
-    const message = error.message.toLowerCase().includes("rate limit")
-      ? "メール送信制限に達しました。Supabase Auth の Email Provider で Confirm email を OFF にしてください。"
-      : error.message;
-    redirect(`/signup?error=${encodeURIComponent(message)}`);
-  }
+  if (error) redirect(`/signup?error=${encodeURIComponent(authErrorMessage(error.message))}`);
+
   if (!data.session) {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) {
-      redirect(`/signup?error=${encodeURIComponent("登録後ログインできませんでした。Supabase Auth の Confirm email を OFF にしてください。")}`);
+      redirect(`/signup?error=${encodeURIComponent(authErrorMessage(signInError.message))}`);
     }
   }
+
   redirect("/setup");
 }
 

@@ -404,7 +404,9 @@ declare
   current_user_id uuid := auth.uid();
   current_email text;
   target_group_id uuid;
+  existing_member_id uuid;
   normalized_code text := upper(regexp_replace(coalesce(code, ''), '[^a-zA-Z0-9]', '', 'g'));
+  member_display_name text := coalesce(nullif(display_name, ''), 'パートナー');
 begin
   if current_user_id is null then
     raise exception 'not authenticated';
@@ -427,17 +429,27 @@ begin
   set display_name = excluded.display_name,
       email = excluded.email;
 
-  insert into public.household_members (household_group_id, user_id, display_name, role, custom_share_ratio)
-  values (
-    target_group_id,
-    current_user_id,
-    coalesce(nullif(display_name, ''), 'パートナー'),
-    'member',
-    least(1, greatest(0, coalesce(share_ratio_value, 0.5)))
-  )
-  on conflict (household_group_id, user_id) do update
-  set display_name = excluded.display_name,
-      custom_share_ratio = excluded.custom_share_ratio;
+  select id into existing_member_id
+  from public.household_members
+  where household_group_id = target_group_id
+    and user_id = current_user_id
+  limit 1;
+
+  if existing_member_id is null then
+    insert into public.household_members (household_group_id, user_id, display_name, role, custom_share_ratio)
+    values (
+      target_group_id,
+      current_user_id,
+      member_display_name,
+      'member',
+      least(1, greatest(0, coalesce(share_ratio_value, 0.5)))
+    );
+  else
+    update public.household_members
+    set display_name = member_display_name,
+        custom_share_ratio = least(1, greatest(0, coalesce(share_ratio_value, 0.5)))
+    where id = existing_member_id;
+  end if;
 end;
 $$;
 
