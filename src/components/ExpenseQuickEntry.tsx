@@ -1,10 +1,12 @@
 "use client";
 
+import type React from "react";
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createExpense, deleteExpense } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
-import { calculateSharedBurden, getCategoriesByKind, getCategory } from "@/lib/budget";
+import { calculateSharedBurden, getCategoriesByKind, getCategory, getMonthScopedData } from "@/lib/budget";
+import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
 import type { BudgetData, Expense, ExpenseTarget } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
@@ -17,18 +19,10 @@ const targetLabels: Record<ExpenseTarget, string> = {
   partner_only: "パートナーのみ"
 };
 
-function todayValue() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function DeleteExpenseButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      className="min-h-11 rounded-xl bg-red-50 px-4 text-sm font-bold text-warn transition active:scale-[0.98] disabled:opacity-50"
-      type="submit"
-      disabled={pending}
-    >
+    <button className="min-h-11 rounded-xl bg-red-50 px-4 text-sm font-bold text-warn transition active:scale-[0.98] disabled:opacity-50" type="submit" disabled={pending}>
       {pending ? "削除中..." : "削除"}
     </button>
   );
@@ -59,12 +53,7 @@ function ExpenseEditForm({
   categories: ReturnType<typeof getCategoriesByKind>;
   onCancel: () => void;
 }) {
-  const [amount, setAmount] = useState(String(expense.amount));
   const [categoryId, setCategoryId] = useState(expense.categoryId);
-  const [date, setDate] = useState(expense.date || todayValue());
-  const [payer, setPayer] = useState(expense.payer);
-  const [target, setTarget] = useState<ExpenseTarget>(expense.target);
-  const [memo, setMemo] = useState(expense.memo);
   const [error, setError] = useState("");
 
   return (
@@ -77,11 +66,6 @@ function ExpenseEditForm({
         if (!categoryId) {
           event.preventDefault();
           setError("カテゴリを選択してください");
-          return;
-        }
-        if (!amount || Number(amount) <= 0) {
-          event.preventDefault();
-          setError("金額を入力してください");
         }
       }}
       className="mt-3 grid gap-3 rounded-2xl bg-white p-3"
@@ -89,13 +73,11 @@ function ExpenseEditForm({
       <input type="hidden" name="id" value={expense.id} />
       <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
       <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
-      <label className="grid gap-1 text-sm font-bold text-ink/65">
-        金額
-        <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="amount" type="number" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} />
-      </label>
-      <label className="grid gap-1 text-sm font-bold text-ink/65">
-        カテゴリ
-        <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+      <Field label="金額">
+        <input name="amount" type="number" inputMode="numeric" defaultValue={expense.amount} className="mobile-input" />
+      </Field>
+      <Field label="カテゴリ">
+        <select name="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="mobile-input">
           <option value="">選択してください</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
@@ -103,31 +85,33 @@ function ExpenseEditForm({
             </option>
           ))}
         </select>
-      </label>
-      <label className="grid gap-1 text-sm font-bold text-ink/65">
-        日付
-        <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-      </label>
-      <label className="grid gap-1 text-sm font-bold text-ink/65">
-        支払者
-        <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="payer" value={payer} onChange={(event) => setPayer(event.target.value)}>
+      </Field>
+      <Field label="日付">
+        <input name="date" type="date" defaultValue={expense.date || getTodayJSTDateString()} className="mobile-input" />
+      </Field>
+      <Field label="支払者">
+        <select name="payer" defaultValue={expense.payer} className="mobile-input">
           <option value="">未選択</option>
           {data.members.map((member) => (
             <option key={member.id}>{member.name}</option>
           ))}
         </select>
-      </label>
-      <label className="grid gap-1 text-sm font-bold text-ink/65">
-        対象
-        <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="target" value={target} onChange={(event) => setTarget(event.target.value as ExpenseTarget)}>
-          {Object.entries(targetLabels).map(([value, label]) => (
-            <option key={value} value={value}>
+      </Field>
+      <Field label="対象">
+        <select name="target" defaultValue={expense.target} className="mobile-input">
+          {Object.entries(targetLabels).map(([targetValue, label]) => (
+            <option key={targetValue} value={targetValue}>
               {label}
             </option>
           ))}
         </select>
-      </label>
-      <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none focus:border-leaf" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="メモ" />
+      </Field>
+      <Field label="お店・場所">
+        <input name="location" defaultValue={expense.location ?? ""} className="mobile-input" placeholder="スーパー、Amazon など" />
+      </Field>
+      <Field label="メモ">
+        <input name="memo" defaultValue={expense.memo} className="mobile-input" placeholder="週末まとめ買いなど" />
+      </Field>
       {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{error}</p> : null}
       <div className="grid grid-cols-2 gap-2">
         <button className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base font-black text-ink transition active:scale-[0.98]" type="button" onClick={onCancel}>
@@ -144,15 +128,19 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const favoriteCategories = useMemo(() => categories.filter((category) => category.favorite).slice(0, 6), [categories]);
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
-  const [date, setDate] = useState(todayValue());
+  const [date, setDate] = useState(getTodayJSTDateString());
   const [payer, setPayer] = useState(data.members[0]?.name ?? "");
   const [target, setTarget] = useState<ExpenseTarget>("shared");
+  const [location, setLocation] = useState("");
   const [memo, setMemo] = useState("");
   const [error, setError] = useState("");
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState("");
+  const [ocrMessage, setOcrMessage] = useState("");
 
-  const recentExpenses = useMemo(() => data.expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3), [data.expenses]);
-  const total = useMemo(() => data.expenses.reduce((sum, expense) => sum + expense.amount, 0), [data.expenses]);
+  const currentMonthExpenses = useMemo(() => getMonthScopedData(data).expenses, [data]);
+  const recentExpenses = useMemo(() => currentMonthExpenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3), [currentMonthExpenses]);
+  const total = useMemo(() => currentMonthExpenses.reduce((sum, expense) => sum + expense.amount, 0), [currentMonthExpenses]);
   const displayError = error || errorMessage;
 
   function validateForm() {
@@ -175,7 +163,10 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         action={async (formData) => {
           await createExpense(formData);
           setAmount("");
+          setLocation("");
           setMemo("");
+          setReceiptPreview("");
+          setOcrMessage("");
         }}
         onSubmit={(event) => {
           if (!validateForm()) event.preventDefault();
@@ -230,10 +221,9 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
           )}
         </div>
 
-        <label className="mt-4 grid gap-1 text-sm font-bold text-ink/65">
-          カテゴリ
+        <Field label="カテゴリ" className="mt-4">
           <select
-            className="min-h-12 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base text-ink outline-none transition focus:border-leaf"
+            className="mobile-input"
             name="categoryId"
             value={categoryId}
             onChange={(event) => {
@@ -248,35 +238,64 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
               </option>
             ))}
           </select>
-        </label>
+        </Field>
 
         <details className="mt-3 rounded-2xl bg-cream/55 p-3">
-          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">日付・支払者・メモ</summary>
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">日付・支払者・場所・メモ</summary>
           <div className="grid gap-3 pt-2">
-            <label className="grid gap-1 text-sm font-bold text-ink/65">
-              日付
-              <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            </label>
-            <label className="grid gap-1 text-sm font-bold text-ink/65">
-              支払者
-              <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="payer" value={payer} onChange={(event) => setPayer(event.target.value)}>
+            <Field label="日付">
+              <input className="mobile-input" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            </Field>
+            <Field label="支払者">
+              <select className="mobile-input" name="payer" value={payer} onChange={(event) => setPayer(event.target.value)}>
                 <option value="">未選択</option>
                 {data.members.map((member) => (
                   <option key={member.id}>{member.name}</option>
                 ))}
               </select>
-            </label>
-            <label className="grid gap-1 text-sm font-bold text-ink/65">
-              対象
-              <select className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="target" value={target} onChange={(event) => setTarget(event.target.value as ExpenseTarget)}>
+            </Field>
+            <Field label="対象">
+              <select className="mobile-input" name="target" value={target} onChange={(event) => setTarget(event.target.value as ExpenseTarget)}>
                 {Object.entries(targetLabels).map(([targetValue, label]) => (
                   <option key={targetValue} value={targetValue}>
                     {label}
                   </option>
                 ))}
               </select>
-            </label>
-            <input className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="メモ" />
+            </Field>
+            <Field label="お店・場所">
+              <input className="mobile-input" name="location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="イオン、Amazon など" />
+            </Field>
+            <Field label="メモ">
+              <input className="mobile-input" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="週末まとめ買いなど" />
+            </Field>
+          </div>
+        </details>
+
+        <details className="mt-3 rounded-2xl bg-cream/55 p-3">
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシートを撮影・読み取る</summary>
+          <div className="grid gap-3 pt-2">
+            <input
+              className="mobile-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                setReceiptPreview(file ? URL.createObjectURL(file) : "");
+                setOcrMessage("");
+              }}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for an unsaved local receipt image */}
+            {receiptPreview ? <img src={receiptPreview} alt="レシートプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
+            <button
+              className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 py-3 text-sm font-black text-leaf transition active:scale-[0.98]"
+              type="button"
+              onClick={() => setOcrMessage("OCRはPhase2の仮実装です。読み取り後は必ず内容を確認してから登録します。")}
+            >
+              写真から読み取る
+            </button>
+            {ocrMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-ink/70">{ocrMessage}</p> : null}
           </div>
         </details>
 
@@ -307,10 +326,15 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
             return (
               <MobileCard key={expense.id} title={`${category?.icon ?? ""} ${category?.name ?? "未分類"}`} amount={yen(expense.amount)}>
                 <button className="grid gap-1 text-left transition active:scale-[0.99]" type="button" onClick={() => setEditingExpenseId(isEditing ? null : expense.id)}>
-                  <span>{expense.date} / {expense.payer || "支払者未設定"} / {targetLabels[expense.target]}</span>
+                  <span>
+                    {expense.date} / {expense.payer || "支払者未設定"} / {targetLabels[expense.target]}
+                  </span>
+                  {expense.location ? <span>場所: {expense.location}</span> : null}
                   {expense.memo ? <span>{expense.memo}</span> : null}
                   {data.members.map((member) => (
-                    <span key={member.id}>{member.name}: {yen(burden[member.id] ?? 0)}</span>
+                    <span key={member.id}>
+                      {member.name}: {yen(burden[member.id] ?? 0)}
+                    </span>
                   ))}
                 </button>
                 {isEditing ? (
@@ -327,7 +351,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
             );
           })}
         </MobileCards>
-        <Table headers={["日付", "カテゴリ", "金額", "支払者", "対象", "メモ"]}>
+        <Table headers={["日付", "カテゴリ", "金額", "場所", "支払者", "対象", "メモ"]}>
           {recentExpenses.map((expense) => {
             const category = getCategory(data, expense.categoryId);
             return (
@@ -335,6 +359,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 <Td>{expense.date}</Td>
                 <Td>{category?.name ?? "未分類"}</Td>
                 <Td>{yen(expense.amount)}</Td>
+                <Td>{expense.location}</Td>
                 <Td>{expense.payer}</Td>
                 <Td>{targetLabels[expense.target]}</Td>
                 <Td>{expense.memo}</Td>
@@ -344,5 +369,14 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         </Table>
       </ListSection>
     </div>
+  );
+}
+
+function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <label className={`grid gap-1 text-sm font-bold text-ink/65 ${className}`}>
+      {label}
+      {children}
+    </label>
   );
 }

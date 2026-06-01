@@ -38,3 +38,9 @@ button,
 a {
   cursor: pointer;
 }
+
+@layer components {
+  .mobile-input {
+    @apply min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-leaf focus:ring-2 focus:ring-leaf/15;
+  }
+}

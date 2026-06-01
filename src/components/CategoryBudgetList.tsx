@@ -11,17 +11,13 @@ type Item = {
 
 export function CategoryBudgetList({ items, compact = false }: { items: Item[]; compact?: boolean }) {
   if (items.length === 0) {
-    return (
-      <div className="rounded-lg bg-cream/60 p-4 text-sm font-bold text-ink/60">
-        まだカテゴリ予算がありません
-      </div>
-    );
+    return <div className="rounded-lg bg-cream/60 p-4 text-sm font-bold text-ink/60">カテゴリ予算がまだ登録されていません</div>;
   }
 
   return (
     <div className="grid gap-3">
       {items.map((item) => {
-        const percent = Math.round(item.rate * 100);
+        const rate = Math.round(item.rate * 100);
         const over = item.rate >= 1;
         return (
           <div key={item.category.id} className="rounded-lg bg-cream/60 p-3">
@@ -32,13 +28,15 @@ export function CategoryBudgetList({ items, compact = false }: { items: Item[]; 
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-ink">{item.category.name}</p>
-                  <p className="text-xs text-ink/55">{yen(item.used)} / {yen(item.budget)}</p>
+                  <p className="text-xs text-ink/55">
+                    {yen(item.used)} / {yen(item.budget)}
+                  </p>
                 </div>
               </div>
-              <strong className={over ? "text-warn" : "text-leaf"}>{percent}%</strong>
+              <strong className={over ? "text-warn" : "text-leaf"}>{rate}%</strong>
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
-              <div className={over ? "h-full rounded-full bg-warn" : "h-full rounded-full bg-leaf"} style={{ width: `${Math.min(100, percent)}%` }} />
+              <div className={over ? "h-full rounded-full bg-warn" : "h-full rounded-full bg-leaf"} style={{ width: `${Math.min(100, rate)}%` }} />
             </div>
             {!compact ? <p className="mt-2 text-xs text-ink/55">残り {yen(item.remaining)}</p> : null}
           </div>

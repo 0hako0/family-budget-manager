@@ -1,23 +1,27 @@
 import Link from "next/link";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { MetricCard } from "@/components/MetricCard";
-import { getCategoryBudgetUsage, getMemberBurdenShares, getRemainingDays, getTotals } from "@/lib/budget";
+import { getMemberBurdenShares, getMonthlyCategoryBudgetProgress, getRemainingDays, getTotals } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
-import { getMonthBudgetPeriod } from "@/lib/date";
+import { getCurrentMonthPeriodJST } from "@/lib/date";
 import { yen } from "@/lib/format";
 
 export default async function Home() {
   const data = await getBudgetData();
-  const totals = getTotals(data);
-  const remainingDays = getRemainingDays();
-  const period = getMonthBudgetPeriod();
-  const budgetUsage = getCategoryBudgetUsage(data).slice(0, 3);
+  const period = getCurrentMonthPeriodJST();
+  const referenceDate = new Date();
+  const totals = getTotals(data, referenceDate);
+  const remainingDays = getRemainingDays(referenceDate);
+  const budgetUsage = getMonthlyCategoryBudgetProgress(data, referenceDate).slice(0, 3);
   const shares = getMemberBurdenShares(data);
 
   return (
     <div className="grid gap-5">
       <section className="rounded-[22px] border border-leaf/20 bg-white p-5 shadow-soft">
-        <p className="text-xs font-bold text-leaf">{period.startLabel} 〜 {period.endLabel}</p>
+        <p className="text-xs font-bold text-leaf">{period.monthLabel}</p>
+        <p className="mt-1 text-[11px] font-bold text-ink/45">
+          期間: {period.startLabel}〜{period.endLabel}
+        </p>
         <p className="mt-3 text-sm font-bold text-ink/60">今月あと使える金額</p>
         <p className="mt-2 text-5xl font-black tracking-normal text-ink">{yen(totals.remainingBudget)}</p>
         <div className="mt-5 grid gap-3">
@@ -28,7 +32,10 @@ export default async function Home() {
           </div>
           <div className={totals.isOverspending ? "rounded-2xl bg-red-50 p-4 text-warn" : "rounded-2xl bg-cream/70 p-4 text-leaf"}>
             <p className="text-sm font-bold">月末予測</p>
-            <p className="mt-1 text-xl font-black">{totals.projectedLanding >= 0 ? "+" : ""}{yen(totals.projectedLanding)}</p>
+            <p className="mt-1 text-xl font-black">
+              {totals.projectedLanding >= 0 ? "+" : ""}
+              {yen(totals.projectedLanding)}
+            </p>
           </div>
         </div>
         <Link href="/expenses" prefetch className="mt-5 flex min-h-14 w-full items-center justify-center rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm transition active:scale-[0.98]">
@@ -39,7 +46,9 @@ export default async function Home() {
       <section className="rounded-[22px] bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-black text-ink">カテゴリ予算</h2>
-          <Link href="/reports" prefetch className="text-sm font-bold text-leaf">レポートへ</Link>
+          <Link href="/reports" prefetch className="text-sm font-bold text-leaf">
+            レポートへ
+          </Link>
         </div>
         <CategoryBudgetList items={budgetUsage} compact />
       </section>
@@ -66,6 +75,9 @@ export default async function Home() {
           <MetricCard label="ローン" value={yen(totals.loanTotal)} />
           <MetricCard label="貯金・投資" value={yen(totals.savingTotal)} tone="accent" />
         </section>
+        <p className="mt-3 text-[11px] font-bold text-ink/35">
+          currentPeriod: {period.startDate} to {period.endDate}
+        </p>
       </details>
     </div>
   );

@@ -29,6 +29,7 @@ export type HouseholdSettings = {
   groupName: string;
   inviteCode?: string;
   iconUrl?: string;
+  saveReceiptImages?: boolean;
   burdenRule: BurdenRule;
   customShares: Record<string, number>;
 };
@@ -82,7 +83,11 @@ export type Expense = {
   categoryId: string;
   payer: string;
   target: ExpenseTarget;
+  location?: string;
   memo: string;
+  receiptImageUrl?: string;
+  receiptOcrText?: string;
+  receiptConfidence?: number;
 };
 
 export type MonthlySummary = {

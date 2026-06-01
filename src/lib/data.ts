@@ -1,10 +1,13 @@
 import { cache } from "react";
 import { createServerSupabaseClient } from "./supabase/server";
-import type { BudgetData, CategoryKind, ExpenseTarget, HouseholdMember } from "./types";
+import type { BudgetData, BurdenRule, CategoryKind, ExpenseTarget, HouseholdMember } from "./types";
 
 const defaultSettings = {
   groupName: "未設定",
-  burdenRule: "fifty_fifty" as const,
+  inviteCode: undefined,
+  iconUrl: undefined,
+  saveReceiptImages: false,
+  burdenRule: "fifty_fifty" as BurdenRule,
   customShares: {}
 };
 
@@ -79,6 +82,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       groupName: String(groupResult.data?.name ?? "未設定"),
       inviteCode: groupResult.data?.invite_code ? String(groupResult.data.invite_code) : undefined,
       iconUrl: groupResult.data?.icon_url ? String(groupResult.data.icon_url) : undefined,
+      saveReceiptImages: Boolean(groupResult.data?.save_receipt_images),
       burdenRule: mapBurdenRule(String(groupResult.data?.burden_rule ?? "fifty_fifty")),
       customShares: Object.fromEntries(members.map((member) => [member.id, member.shareRatio]))
     },
@@ -139,7 +143,11 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       categoryId: String(expense.category_id ?? ""),
       payer: String(expense.payer_name ?? ""),
       target: mapExpenseTarget(String(expense.target ?? "shared")),
-      memo: String(expense.memo ?? "")
+      location: expense.location ? String(expense.location) : "",
+      memo: String(expense.memo ?? ""),
+      receiptImageUrl: expense.receipt_image_url ? String(expense.receipt_image_url) : undefined,
+      receiptOcrText: expense.receipt_ocr_text ? String(expense.receipt_ocr_text) : undefined,
+      receiptConfidence: expense.receipt_confidence == null ? undefined : Number(expense.receipt_confidence)
     })),
     monthlySummaries: (summariesResult.data ?? []).map((summary: Record<string, unknown>) => ({
       id: String(summary.id),
@@ -159,10 +167,10 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
   };
 });
 
-function mapBurdenRule(value: string) {
-  if (value === "custom") return "custom" as const;
-  if (value === "income_ratio") return "income_ratio" as const;
-  return "fifty_fifty" as const;
+function mapBurdenRule(value: string): BurdenRule {
+  if (value === "custom") return "custom";
+  if (value === "income_ratio") return "income_ratio";
+  return "fifty_fifty";
 }
 
 function mapExpenseTarget(value: string): ExpenseTarget {

@@ -21,6 +21,7 @@ create table if not exists public.household_groups (
   name text not null,
   invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
   icon_url text,
+  save_receipt_images boolean not null default false,
   burden_rule text not null default 'fifty_fifty' check (burden_rule in ('fifty_fifty', 'custom', 'income_ratio')),
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -30,6 +31,7 @@ create table if not exists public.household_groups (
 alter table public.household_groups add column if not exists created_by uuid references auth.users(id) on delete set null;
 alter table public.household_groups add column if not exists invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 alter table public.household_groups add column if not exists icon_url text;
+alter table public.household_groups add column if not exists save_receipt_images boolean not null default false;
 alter table public.household_groups alter column invite_code set default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 update public.household_groups
 set invite_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
@@ -253,7 +255,11 @@ create table if not exists public.expenses (
   share_rule text not null default 'group_default' check (share_rule in ('group_default', 'fifty_fifty', 'custom', 'income_ratio')),
   payer_share_ratio numeric(5, 4),
   partner_share_ratio numeric(5, 4),
+  location text,
   memo text not null default '',
+  receipt_image_url text,
+  receipt_ocr_text text,
+  receipt_confidence numeric,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createCurrentMonthlySummary } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
+import { getTodayJSTDateString } from "@/lib/date";
 import { normalizeInviteCode } from "@/lib/invite-code";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { CategoryKind } from "@/lib/types";
@@ -15,10 +16,6 @@ function value(formData: FormData, key: string) {
 function numberValue(formData: FormData, key: string, fallback = 0) {
   const parsed = Number(value(formData, key));
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function currentDateValue() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function authErrorMessage(message: string) {
@@ -42,7 +39,7 @@ async function requireUser() {
   } = await supabase.auth.getUser();
 
   if (!session || !user) {
-    redirect("/login?error=ログイン状態を確認できませんでした。もう一度ログインしてください");
+    redirect("/login?error=ログイン状態を確認できませんでした。もう一度ログインしてください。");
   }
 
   return { supabase, user };
@@ -74,9 +71,7 @@ export async function signUp(formData: FormData) {
 
   if (!data.session) {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) {
-      redirect(`/signup?error=${encodeURIComponent(authErrorMessage(signInError.message))}`);
-    }
+    if (signInError) redirect(`/signup?error=${encodeURIComponent(authErrorMessage(signInError.message))}`);
   }
 
   redirect("/setup");
@@ -112,9 +107,8 @@ export async function createInvitation(formData: FormData) {
   const { data, error } = await supabase.from("household_groups").select("invite_code").eq("id", groupId).maybeSingle();
 
   if (error) redirect(`/settings?inviteError=${encodeURIComponent(error.message)}`);
-  const code = String(data?.invite_code ?? "");
   revalidatePath("/settings");
-  redirect(`/settings?invite=${code}`);
+  redirect(`/settings?invite=${encodeURIComponent(String(data?.invite_code ?? ""))}`);
 }
 
 export async function joinInvitation(formData: FormData) {
@@ -172,16 +166,15 @@ export async function updateHouseholdSettings(formData: FormData) {
   const iconUrl = value(formData, "iconUrl");
   const burdenRule = value(formData, "burdenRule") || "fifty_fifty";
 
-  if (!householdGroupId || !groupName) {
-    redirect("/settings?settingsError=家計グループ名を入力してください");
-  }
+  if (!householdGroupId || !groupName) redirect("/settings?settingsError=家計グループ名を入力してください");
 
   const { error } = await supabase
     .from("household_groups")
     .update({
       name: groupName,
       icon_url: iconUrl || null,
-      burden_rule: ["fifty_fifty", "custom", "income_ratio"].includes(burdenRule) ? burdenRule : "fifty_fifty"
+      burden_rule: ["fifty_fifty", "custom", "income_ratio"].includes(burdenRule) ? burdenRule : "fifty_fifty",
+      save_receipt_images: value(formData, "saveReceiptImages") === "on"
     })
     .eq("id", householdGroupId);
 
@@ -198,17 +191,11 @@ export async function updateHouseholdMember(formData: FormData) {
   const role = value(formData, "role") === "owner" ? "owner" : "member";
   const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
 
-  if (!id || !displayName) {
-    redirect("/settings?memberError=表示名を入力してください");
-  }
+  if (!id || !displayName) redirect("/settings?memberError=表示名を入力してください");
 
   const { error } = await supabase
     .from("household_members")
-    .update({
-      display_name: displayName,
-      custom_share_ratio: shareRatio,
-      role
-    })
+    .update({ display_name: displayName, custom_share_ratio: shareRatio, role })
     .eq("id", id);
 
   if (error) redirect(`/settings?memberError=${encodeURIComponent(error.message)}`);
@@ -232,12 +219,16 @@ export async function createExpense(formData: FormData) {
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
     amount,
-    spent_on: value(formData, "date") || currentDateValue(),
+    spent_on: value(formData, "date") || getTodayJSTDateString(),
     category: "other",
     category_id: categoryId,
     payer_name: value(formData, "payer"),
     target: value(formData, "target") || "shared",
-    memo: value(formData, "memo")
+    location: value(formData, "location") || null,
+    memo: value(formData, "memo"),
+    receipt_image_url: value(formData, "receiptImageUrl") || null,
+    receipt_ocr_text: value(formData, "receiptOcrText") || null,
+    receipt_confidence: value(formData, "receiptConfidence") ? numberValue(formData, "receiptConfidence") : null
   };
 
   const { error } = id
@@ -247,6 +238,7 @@ export async function createExpense(formData: FormData) {
   if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/expenses");
+  revalidatePath("/reports");
 }
 
 export async function createIncome(formData: FormData) {
@@ -263,7 +255,7 @@ export async function createIncome(formData: FormData) {
     member_id: value(formData, "memberId") || null,
     name,
     amount,
-    paid_on: value(formData, "paidOn") || currentDateValue(),
+    paid_on: value(formData, "paidOn") || getTodayJSTDateString(),
     earner_name: value(formData, "earner"),
     income_type: "other",
     category_id: value(formData, "categoryId") || null,
@@ -410,6 +402,7 @@ export async function deleteExpense(formData: FormData) {
   if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/");
   revalidatePath("/expenses");
+  revalidatePath("/reports");
 }
 
 export async function deleteIncome(formData: FormData) {

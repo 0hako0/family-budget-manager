@@ -1,7 +1,11 @@
-import { getMonthBudgetPeriod } from "./date";
+import {
+  getJSTDayOfMonth,
+  getMonthBudgetPeriod,
+  getReferenceDateFromMonthKey,
+  isDateInMonthJST,
+  shiftMonthKey
+} from "./date";
 import type { BudgetData, BurdenRule, CategoryKind, CompareTarget, Expense, MonthlySummary } from "./types";
-
-const appToday = new Date();
 
 export function sumBy<T>(items: T[], getValue: (item: T) => number) {
   return items.reduce((total, item) => total + getValue(item), 0);
@@ -17,32 +21,28 @@ export function getCategoriesByKind(data: BudgetData, kind: CategoryKind) {
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-function isInMonth(dateValue: string, referenceDate = appToday) {
-  const period = getMonthBudgetPeriod(referenceDate);
-  const date = new Date(`${dateValue}T00:00:00+09:00`);
-  return date >= period.start && date <= period.end;
-}
-
-export function getBudgetDays(referenceDate = appToday) {
+export function getBudgetDays(referenceDate = new Date()) {
   return getMonthBudgetPeriod(referenceDate).totalDays;
 }
 
-export function getRemainingDays(referenceDate = appToday) {
+export function getRemainingDays(referenceDate = new Date()) {
   const period = getMonthBudgetPeriod(referenceDate);
-  return Math.max(1, period.totalDays - referenceDate.getDate() + 1);
+  const today = getJSTDayOfMonth(referenceDate);
+  return Math.max(1, period.totalDays - today + 1);
 }
 
-export function getMonthScopedData(data: BudgetData, referenceDate = appToday) {
+export function getMonthScopedData(data: BudgetData, referenceDate = new Date()) {
   return {
-    incomes: data.incomes.filter((income) => isInMonth(income.paidOn, referenceDate)),
+    ...data,
+    incomes: data.incomes.filter((income) => isDateInMonthJST(income.paidOn, referenceDate)),
     savings: data.savings,
     fixedCosts: data.fixedCosts,
     loans: data.loans,
-    expenses: data.expenses.filter((expense) => isInMonth(expense.date, referenceDate))
+    expenses: data.expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate))
   };
 }
 
-export function getTotals(data: BudgetData, referenceDate = appToday) {
+export function getTotals(data: BudgetData, referenceDate = new Date()) {
   const scoped = getMonthScopedData(data, referenceDate);
   const incomeTotal = sumBy(scoped.incomes, (income) => income.amount);
   const savingTotal = sumBy(scoped.savings, (saving) => saving.amount);
@@ -52,7 +52,7 @@ export function getTotals(data: BudgetData, referenceDate = appToday) {
   const livingBudget = incomeTotal - savingTotal - fixedCostTotal - loanTotal;
   const remainingBudget = livingBudget - variableExpenseTotal;
   const dailyGuide = remainingBudget / getRemainingDays(referenceDate);
-  const elapsedDays = Math.max(1, referenceDate.getDate());
+  const elapsedDays = Math.max(1, getJSTDayOfMonth(referenceDate));
   const averageDailyExpense = variableExpenseTotal / elapsedDays;
   const projectedVariableExpense = averageDailyExpense * getBudgetDays(referenceDate);
   const projectedLanding = livingBudget - projectedVariableExpense;
@@ -75,7 +75,39 @@ export function getTotals(data: BudgetData, referenceDate = appToday) {
   };
 }
 
-export function createCurrentMonthlySummary(data: BudgetData, referenceDate = appToday): MonthlySummary {
+export function groupExpensesByCategory(expenses: Expense[]) {
+  const map = new Map<string, number>();
+  expenses.forEach((expense) => {
+    if (!expense.categoryId) return;
+    map.set(expense.categoryId, (map.get(expense.categoryId) ?? 0) + expense.amount);
+  });
+  return Array.from(map, ([categoryId, value]) => ({ categoryId, value }));
+}
+
+export function calculateCategorySpending(expenses: Expense[], referenceDate = new Date()) {
+  return new Map(groupExpensesByCategory(expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate))).map((item) => [item.categoryId, item.value]));
+}
+
+export function getMonthlyCategoryBudgetProgress(data: BudgetData, referenceDate = new Date()) {
+  const expenseTotals = calculateCategorySpending(data.expenses, referenceDate);
+  return getCategoriesByKind(data, "expense")
+    .filter((category) => typeof category.monthlyBudget === "number")
+    .map((category) => {
+      const used = expenseTotals.get(category.id) ?? 0;
+      const budget = category.monthlyBudget ?? 0;
+      return {
+        category,
+        used,
+        budget,
+        rate: budget === 0 ? 0 : used / budget,
+        remaining: budget - used
+      };
+    });
+}
+
+export const getCategoryBudgetUsage = getMonthlyCategoryBudgetProgress;
+
+export function createCurrentMonthlySummary(data: BudgetData, referenceDate = new Date()): MonthlySummary {
   const totals = getTotals(data, referenceDate);
   const period = getMonthBudgetPeriod(referenceDate);
   const scoped = getMonthScopedData(data, referenceDate);
@@ -95,35 +127,10 @@ export function createCurrentMonthlySummary(data: BudgetData, referenceDate = ap
   };
 }
 
-export function groupExpensesByCategory(expenses: Expense[]) {
-  const map = new Map<string, number>();
-  expenses.forEach((expense) => {
-    map.set(expense.categoryId, (map.get(expense.categoryId) ?? 0) + expense.amount);
-  });
-  return Array.from(map, ([categoryId, value]) => ({ categoryId, value }));
-}
-
-export function getCategoryBudgetUsage(data: BudgetData, referenceDate = appToday) {
-  const scoped = getMonthScopedData(data, referenceDate);
-  const expenseTotals = new Map(groupExpensesByCategory(scoped.expenses).map((item) => [item.categoryId, item.value]));
-  return getCategoriesByKind(data, "expense")
-    .filter((category) => typeof category.monthlyBudget === "number")
-    .map((category) => {
-      const used = expenseTotals.get(category.id) ?? 0;
-      const budget = category.monthlyBudget ?? 0;
-      return {
-        category,
-        used,
-        budget,
-        rate: budget === 0 ? 0 : used / budget,
-        remaining: budget - used
-      };
-    });
-}
-
-export function getMonthlyTrend(data: BudgetData) {
-  const current = createCurrentMonthlySummary(data);
-  return [...data.monthlySummaries, current]
+export function getMonthlyTrend(data: BudgetData, referenceDate = new Date()) {
+  const current = createCurrentMonthlySummary(data, referenceDate);
+  const summaries = data.monthlySummaries.filter((summary) => summary.month !== current.month);
+  return [...summaries, current]
     .slice()
     .sort((a, b) => a.month.localeCompare(b.month))
     .map((summary) => ({
@@ -133,14 +140,15 @@ export function getMonthlyTrend(data: BudgetData) {
     }));
 }
 
-export function getComparisonSummary(data: BudgetData, target: CompareTarget) {
+export function getComparisonSummary(data: BudgetData, target: CompareTarget, referenceDate = new Date()) {
+  const currentMonthKey = getMonthBudgetPeriod(referenceDate).monthKey;
   const summaries = [...data.monthlySummaries].sort((a, b) => b.month.localeCompare(a.month));
-  if (target === "last_month") return summaries.find((summary) => summary.month === getShiftedMonthKey(-1));
-  if (target === "two_months_ago") return summaries.find((summary) => summary.month === getShiftedMonthKey(-2));
-  if (target === "six_months_ago") return summaries.find((summary) => summary.month === getShiftedMonthKey(-6));
-  if (target === "same_month_last_year") return summaries.find((summary) => summary.month === getShiftedMonthKey(-12));
+  if (target === "last_month") return summaries.find((summary) => summary.month === shiftMonthKey(currentMonthKey, -1));
+  if (target === "two_months_ago") return summaries.find((summary) => summary.month === shiftMonthKey(currentMonthKey, -2));
+  if (target === "six_months_ago") return summaries.find((summary) => summary.month === shiftMonthKey(currentMonthKey, -6));
+  if (target === "same_month_last_year") return summaries.find((summary) => summary.month === shiftMonthKey(currentMonthKey, -12));
 
-  const lastThreeKeys = [getShiftedMonthKey(-1), getShiftedMonthKey(-2), getShiftedMonthKey(-3)];
+  const lastThreeKeys = [shiftMonthKey(currentMonthKey, -1), shiftMonthKey(currentMonthKey, -2), shiftMonthKey(currentMonthKey, -3)];
   const lastThree = summaries.filter((summary) => lastThreeKeys.includes(summary.month));
   if (lastThree.length === 0) return undefined;
   return averageSummaries("3か月平均", lastThree);
@@ -173,14 +181,9 @@ function average(values: number[]) {
   return values.length === 0 ? 0 : sumBy(values, (value) => value) / values.length;
 }
 
-function getShiftedMonthKey(offset: number, referenceDate = appToday) {
-  const date = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + offset, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "last_month") {
-  const current = createCurrentMonthlySummary(data);
-  const compared = getComparisonSummary(data, target);
+export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "last_month", referenceDate = new Date()) {
+  const current = createCurrentMonthlySummary(data, referenceDate);
+  const compared = getComparisonSummary(data, target, referenceDate);
 
   const rows = [
     ["収入", current.incomeTotal, compared?.incomeTotal ?? 0],
@@ -207,6 +210,41 @@ export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "
       return { category, currentValue, comparedValue, diff: currentValue - comparedValue };
     })
   };
+}
+
+export function getCalendarDaySummaries(data: BudgetData, referenceDate = new Date()) {
+  const period = getMonthBudgetPeriod(referenceDate);
+  const dailyTotals = new Map<string, number>();
+  const dailyExpenses = new Map<string, Expense[]>();
+
+  getMonthScopedData(data, referenceDate).expenses.forEach((expense) => {
+    dailyTotals.set(expense.date, (dailyTotals.get(expense.date) ?? 0) + expense.amount);
+    dailyExpenses.set(expense.date, [...(dailyExpenses.get(expense.date) ?? []), expense]);
+  });
+
+  const firstWeekday = new Date(Date.UTC(period.year, period.month - 1, 1)).getUTCDay();
+  const cells: Array<{ date: string; day: number | null; total: number; expenses: Expense[]; inMonth: boolean }> = [];
+
+  for (let i = 0; i < firstWeekday; i += 1) {
+    cells.push({ date: "", day: null, total: 0, expenses: [], inMonth: false });
+  }
+
+  for (let day = 1; day <= period.totalDays; day += 1) {
+    const date = `${period.monthKey}-${String(day).padStart(2, "0")}`;
+    cells.push({
+      date,
+      day,
+      total: dailyTotals.get(date) ?? 0,
+      expenses: dailyExpenses.get(date) ?? [],
+      inMonth: true
+    });
+  }
+
+  return { period, cells };
+}
+
+export function getReferenceDateForMonthKey(monthKey: string) {
+  return getReferenceDateFromMonthKey(monthKey);
 }
 
 export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.settings.burdenRule) {

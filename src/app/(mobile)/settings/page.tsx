@@ -67,6 +67,10 @@ export default async function SettingsPage({
               <option value="income_ratio">収入比率で自動計算</option>
             </select>
           </label>
+          <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink">
+            <input name="saveReceiptImages" type="checkbox" defaultChecked={data.settings.saveReceiptImages} />
+            レシート画像を保存する
+          </label>
           {searchParams?.settingsError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.settingsError}</p> : null}
           <FormSubmitButton idleLabel="保存する" pendingLabel="保存中..." className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm transition active:scale-[0.98] disabled:bg-ink/20" />
         </form>
