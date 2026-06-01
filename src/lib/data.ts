@@ -142,6 +142,8 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       date: String(expense.spent_on ?? ""),
       categoryId: String(expense.category_id ?? ""),
       payer: String(expense.payer_name ?? ""),
+      paidByType: expense.paid_by_type === "shared_wallet" ? "shared_wallet" : "member",
+      paidByUserId: expense.paid_by_user_id ? String(expense.paid_by_user_id) : undefined,
       target: mapExpenseTarget(String(expense.target ?? "shared")),
       location: expense.location ? String(expense.location) : "",
       memo: String(expense.memo ?? ""),

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { MetricCard } from "@/components/MetricCard";
-import { getMemberBurdenShares, getMonthlyCategoryBudgetProgress, getRemainingDays, getTotals } from "@/lib/budget";
+import { getBudgetConsumption, getMemberBurdenShares, getMonthlyCategoryBudgetProgress, getNextIncome, getRemainingDays, getTotals } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import { getCurrentMonthPeriodJST } from "@/lib/date";
 import { yen } from "@/lib/format";
@@ -14,6 +14,10 @@ export default async function Home() {
   const remainingDays = getRemainingDays(referenceDate);
   const budgetUsage = getMonthlyCategoryBudgetProgress(data, referenceDate).slice(0, 3);
   const shares = getMemberBurdenShares(data);
+  const nextIncome = getNextIncome(data, referenceDate);
+  const consumption = getBudgetConsumption(data, referenceDate);
+  const consumptionPercent = Math.round(consumption.rate * 100);
+  const consumptionTone = consumption.rate >= 1 ? "bg-warn" : consumption.rate >= 0.8 ? "bg-amber-400" : "bg-leaf";
 
   return (
     <div className="grid gap-5">
@@ -25,6 +29,18 @@ export default async function Home() {
         <p className="mt-3 text-sm font-bold text-ink/60">今月あと使える金額</p>
         <p className="mt-2 text-5xl font-black tracking-normal text-ink">{yen(totals.remainingBudget)}</p>
         <div className="mt-5 grid gap-3">
+          <div className="rounded-2xl bg-cream/70 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-bold text-ink">今月予算消化率</p>
+              <p className={consumption.rate >= 1 ? "text-xl font-black text-warn" : "text-xl font-black text-leaf"}>{consumptionPercent}%</p>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+              <div className={`h-full rounded-full ${consumptionTone}`} style={{ width: `${Math.min(100, consumptionPercent)}%` }} />
+            </div>
+            <p className="mt-2 text-xs text-ink/55">
+              使用済み: {yen(consumption.used)} / 今月の収入予定: {yen(consumption.plannedIncome)}
+            </p>
+          </div>
           <div className="rounded-2xl bg-emerald-50 p-4">
             <p className="text-sm font-bold text-leaf">今日使える目安</p>
             <p className="mt-1 text-2xl font-black text-ink">{yen(totals.dailyGuide)}</p>
@@ -37,6 +53,11 @@ export default async function Home() {
               {yen(totals.projectedLanding)}
             </p>
           </div>
+        </div>
+        <div className="mt-4 grid gap-1 rounded-2xl bg-cream/60 p-3 text-xs font-bold text-ink/60">
+          <p>入金予定: {yen(totals.incomeTotal)}</p>
+          <p>入金済み: {yen(totals.paidIncomeTotal)}</p>
+          <p>次の入金日: {nextIncome ? nextIncome.paidOn.replaceAll("-", "/") : "予定なし"}</p>
         </div>
         <Link href="/expenses" prefetch className="mt-5 flex min-h-14 w-full items-center justify-center rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm transition active:scale-[0.98]">
           支出を入力

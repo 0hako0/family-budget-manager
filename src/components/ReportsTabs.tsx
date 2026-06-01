@@ -223,6 +223,13 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; monthKey: 
                 {cell.total > 0 ? (
                   <>
                     <span className={cell.total / maxDailyTotal > 0.7 ? "mt-1 block text-[10px] font-black text-warn" : "mt-1 block text-[10px] font-black text-leaf"}>{yen(cell.total)}</span>
+                    <span className="mt-1 flex gap-0.5">
+                      {Array.from(new Set(cell.expenses.map((expense) => expense.categoryId))).slice(0, 3).map((categoryId) => {
+                        const category = getCategory(data, categoryId);
+                        return <span key={categoryId} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: category?.color ?? "#2f8f6b" }} />;
+                      })}
+                      {new Set(cell.expenses.map((expense) => expense.categoryId)).size > 3 ? <span className="text-[9px] leading-none text-ink/45">+</span> : null}
+                    </span>
                     <span className={cell.total / maxDailyTotal > 0.7 ? "mt-1 block h-1.5 rounded-full bg-warn" : "mt-1 block h-1.5 rounded-full bg-leaf"} />
                   </>
                 ) : null}
@@ -249,6 +256,7 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; monthKey: 
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black text-ink">
+                        <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: category?.color ?? "#2f8f6b" }} />
                         {category?.icon} {category?.name ?? "未分類"}
                       </p>
                       <p className="mt-1 text-xs font-bold text-ink/55">
@@ -289,7 +297,10 @@ function CalendarExpenseEdit({ data, expense, categories }: { data: BudgetData; 
           {data.members.map((member) => (
             <option key={member.id}>{member.name}</option>
           ))}
+          <option value="共通財布">共通財布</option>
         </select>
+        <input type="hidden" name="paidByType" value={expense.paidByType ?? (expense.payer === "共通財布" ? "shared_wallet" : "member")} />
+        <input type="hidden" name="paidByUserId" value={expense.paidByUserId ?? ""} />
         <select className="mobile-input" name="target" defaultValue={expense.target}>
           {Object.entries(targetLabels).map(([value, label]) => (
             <option key={value} value={value}>

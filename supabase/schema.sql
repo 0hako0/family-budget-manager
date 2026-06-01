@@ -251,6 +251,8 @@ create table if not exists public.expenses (
   category text not null default 'other' check (category in ('food', 'dining', 'daily_goods', 'transport', 'hobby', 'clothing', 'medical', 'social', 'pet', 'other')),
   category_id uuid references public.categories(id) on delete set null,
   payer_name text not null,
+  paid_by_type text not null default 'member' check (paid_by_type in ('member', 'shared_wallet')),
+  paid_by_user_id uuid references auth.users(id) on delete set null,
   target text not null default 'shared' check (target in ('shared', 'self_only', 'partner_only')),
   share_rule text not null default 'group_default' check (share_rule in ('group_default', 'fifty_fifty', 'custom', 'income_ratio')),
   payer_share_ratio numeric(5, 4),

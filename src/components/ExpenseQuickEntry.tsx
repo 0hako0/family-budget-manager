@@ -95,7 +95,10 @@ function ExpenseEditForm({
           {data.members.map((member) => (
             <option key={member.id}>{member.name}</option>
           ))}
+          <option value="共通財布">共通財布</option>
         </select>
+        <input type="hidden" name="paidByType" value={expense.paidByType ?? (expense.payer === "共通財布" ? "shared_wallet" : "member")} />
+        <input type="hidden" name="paidByUserId" value={expense.paidByUserId ?? ""} />
       </Field>
       <Field label="対象">
         <select name="target" defaultValue={expense.target} className="mobile-input">
@@ -130,6 +133,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [date, setDate] = useState(getTodayJSTDateString());
   const [payer, setPayer] = useState(data.members[0]?.name ?? "");
+  const [paidByType, setPaidByType] = useState<"member" | "shared_wallet">("member");
   const [target, setTarget] = useState<ExpenseTarget>("shared");
   const [location, setLocation] = useState("");
   const [memo, setMemo] = useState("");
@@ -247,12 +251,29 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
               <input className="mobile-input" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </Field>
             <Field label="支払者">
-              <select className="mobile-input" name="payer" value={payer} onChange={(event) => setPayer(event.target.value)}>
+              <select
+                className="mobile-input"
+                name="payer"
+                value={paidByType === "shared_wallet" ? "共通財布" : payer}
+                onChange={(event) => {
+                  if (event.target.value === "共通財布") {
+                    setPaidByType("shared_wallet");
+                    setPayer("共通財布");
+                    setTarget("shared");
+                  } else {
+                    setPaidByType("member");
+                    setPayer(event.target.value);
+                  }
+                }}
+              >
                 <option value="">未選択</option>
                 {data.members.map((member) => (
                   <option key={member.id}>{member.name}</option>
                 ))}
+                <option value="共通財布">共通財布</option>
               </select>
+              <input type="hidden" name="paidByType" value={paidByType} />
+              <input type="hidden" name="paidByUserId" value={paidByType === "member" ? data.members.find((member) => member.name === payer)?.userId ?? "" : ""} />
             </Field>
             <Field label="対象">
               <select className="mobile-input" name="target" value={target} onChange={(event) => setTarget(event.target.value as ExpenseTarget)}>

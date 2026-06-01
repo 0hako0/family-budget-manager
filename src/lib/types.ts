@@ -14,6 +14,7 @@ export type Category = {
 };
 
 export type ExpenseTarget = "shared" | "self_only" | "partner_only";
+export type PaidByType = "member" | "shared_wallet";
 export type BurdenRule = "fifty_fifty" | "custom" | "income_ratio";
 export type CompareTarget = "last_month" | "two_months_ago" | "three_month_average" | "six_months_ago" | "same_month_last_year";
 
@@ -82,6 +83,8 @@ export type Expense = {
   date: string;
   categoryId: string;
   payer: string;
+  paidByType?: PaidByType;
+  paidByUserId?: string;
   target: ExpenseTarget;
   location?: string;
   memo: string;

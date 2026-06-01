@@ -2,6 +2,7 @@ import {
   getJSTDayOfMonth,
   getMonthBudgetPeriod,
   getReferenceDateFromMonthKey,
+  getTodayJSTDateString,
   isDateInMonthJST,
   shiftMonthKey
 } from "./date";
@@ -45,6 +46,7 @@ export function getMonthScopedData(data: BudgetData, referenceDate = new Date())
 export function getTotals(data: BudgetData, referenceDate = new Date()) {
   const scoped = getMonthScopedData(data, referenceDate);
   const incomeTotal = sumBy(scoped.incomes, (income) => income.amount);
+  const paidIncomeTotal = sumBy(getPaidIncomes(data, referenceDate), (income) => income.amount);
   const savingTotal = sumBy(scoped.savings, (saving) => saving.amount);
   const fixedCostTotal = sumBy(scoped.fixedCosts, (cost) => cost.amount);
   const loanTotal = sumBy(scoped.loans, (loan) => loan.monthlyPayment);
@@ -59,6 +61,7 @@ export function getTotals(data: BudgetData, referenceDate = new Date()) {
 
   return {
     incomeTotal,
+    paidIncomeTotal,
     savingTotal,
     fixedCostTotal,
     loanTotal,
@@ -72,6 +75,28 @@ export function getTotals(data: BudgetData, referenceDate = new Date()) {
     savingRate: incomeTotal === 0 ? 0 : savingTotal / incomeTotal,
     fixedCostRate: incomeTotal === 0 ? 0 : fixedCostTotal / incomeTotal,
     variableExpenseRate: incomeTotal === 0 ? 0 : variableExpenseTotal / incomeTotal
+  };
+}
+
+export function getPaidIncomes(data: BudgetData, referenceDate = new Date()) {
+  const today = getTodayJSTDateString(referenceDate);
+  return getMonthScopedData(data, referenceDate).incomes.filter((income) => income.paidOn <= today);
+}
+
+export function getNextIncome(data: BudgetData, referenceDate = new Date()) {
+  const today = getTodayJSTDateString(referenceDate);
+  return getMonthScopedData(data, referenceDate)
+    .incomes.filter((income) => income.paidOn >= today)
+    .sort((a, b) => a.paidOn.localeCompare(b.paidOn))[0];
+}
+
+export function getBudgetConsumption(data: BudgetData, referenceDate = new Date()) {
+  const totals = getTotals(data, referenceDate);
+  const used = totals.fixedCostTotal + totals.loanTotal + totals.savingTotal + totals.variableExpenseTotal;
+  return {
+    used,
+    plannedIncome: totals.incomeTotal,
+    rate: totals.incomeTotal === 0 ? 0 : used / totals.incomeTotal
   };
 }
 
@@ -270,6 +295,10 @@ export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.
 }
 
 export function calculateSharedBurden(expense: Expense, data: BudgetData) {
+  if (expense.paidByType === "shared_wallet" && expense.target === "shared") {
+    return Object.fromEntries(data.members.map((member) => [member.id, 0]));
+  }
+
   if (expense.target !== "shared") {
     const member = data.members.find((item) => item.name === expense.payer);
     return Object.fromEntries(data.members.map((item) => [item.id, item.id === member?.id ? expense.amount : 0]));
