@@ -29,6 +29,14 @@ function authErrorMessage(message: string) {
   return message;
 }
 
+function inviteErrorMessage(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("not authenticated")) return "ログイン状態を確認できませんでした。もう一度ログインしてください。";
+  if (lower.includes("家計コード")) return message;
+  if (lower.includes("invite") || lower.includes("code") || lower.includes("not found")) return "家計コードが見つかりません。コードを確認してください。";
+  return message;
+}
+
 async function requireUser() {
   const supabase = createServerSupabaseClient();
   const {
@@ -123,7 +131,7 @@ export async function joinInvitation(formData: FormData) {
     share_ratio_value: shareRatio
   });
 
-  if (error) redirect(`/setup?joinError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/setup?joinError=${encodeURIComponent(inviteErrorMessage(error.message))}`);
   redirect("/");
 }
 

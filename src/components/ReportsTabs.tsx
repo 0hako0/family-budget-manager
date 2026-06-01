@@ -42,10 +42,9 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
   const [target, setTarget] = useState<CompareTarget>("last_month");
   const [monthKey, setMonthKey] = useState(currentPeriod.monthKey);
   const referenceDate = useMemo(() => getReferenceDateFromMonthKey(monthKey), [monthKey]);
-  const period = useMemo(() => getCurrentOrSelectedPeriod(monthKey), [monthKey]);
+  const period = useMemo(() => (currentPeriod.monthKey === monthKey ? currentPeriod : getMonthBudgetPeriod(referenceDate)), [currentPeriod, monthKey, referenceDate]);
   const scopedData = useMemo(() => getMonthScopedData(data, referenceDate), [data, referenceDate]);
   const totals = useMemo(() => getTotals(data, referenceDate), [data, referenceDate]);
-  const currentSummary = useMemo(() => getMonthlyComparison(data, target, referenceDate).current, [data, target, referenceDate]);
   const comparison = useMemo(() => getMonthlyComparison(data, target, referenceDate), [data, target, referenceDate]);
   const categoryBudgetItems = useMemo(() => getMonthlyCategoryBudgetProgress(data, referenceDate), [data, referenceDate]);
   const categoryData = useMemo(
@@ -145,9 +144,9 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
           </div>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <p className="text-sm font-bold text-leaf">月締めプレビュー</p>
-            <p className="mt-2 text-3xl font-black text-ink">{currentSummary.month}</p>
+            <p className="mt-2 text-3xl font-black text-ink">{comparison.current.month}</p>
             <p className="mt-1 text-sm text-ink/60">
-              残額 {yen(currentSummary.remainingBudget)} / 着地 {yen(currentSummary.landingResult)}
+              残額 {yen(comparison.current.remainingBudget)} / 着地 {yen(comparison.current.landingResult)}
             </p>
             <form action={closeCurrentMonth} className="mt-3 grid gap-3">
               <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
@@ -175,22 +174,18 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
         </section>
       ) : null}
 
-      {tab === "カレンダー" ? <ExpenseCalendar data={data} monthKey={monthKey} referenceDate={referenceDate} /> : null}
+      {tab === "カレンダー" ? <ExpenseCalendar data={data} referenceDate={referenceDate} /> : null}
     </div>
   );
 }
 
-function getCurrentOrSelectedPeriod(monthKey: string) {
-  return getCurrentMonthPeriodJST().monthKey === monthKey ? getCurrentMonthPeriodJST() : getMonthBudgetPeriod(getReferenceDateFromMonthKey(monthKey));
-}
-
-function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; monthKey: string; referenceDate: Date }) {
+function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceDate: Date }) {
   const { period, cells } = useMemo(() => getCalendarDaySummaries(data, referenceDate), [data, referenceDate]);
   const categories = useMemo(() => getCategoriesByKind(data, "expense"), [data]);
+  const budgetItems = useMemo(() => getMonthlyCategoryBudgetProgress(data, referenceDate), [data, referenceDate]);
+  const categoryRate = useMemo(() => new Map(budgetItems.map((item) => [item.category.id, item.rate])), [budgetItems]);
   const [selectedDate, setSelectedDate] = useState(period.startDate);
-  useEffect(() => {
-    setSelectedDate(period.startDate);
-  }, [period.startDate]);
+  useEffect(() => setSelectedDate(period.startDate), [period.startDate]);
   const selectedCell = cells.find((cell) => cell.date === selectedDate);
   const selectedExpenses = selectedCell?.expenses ?? [];
   const maxDailyTotal = Math.max(1, ...cells.map((cell) => cell.total));
@@ -200,9 +195,7 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; monthKey: 
       <section className="rounded-[22px] bg-white p-4 shadow-sm">
         <h2 className="text-base font-black text-ink">支出カレンダー</h2>
         <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-black text-ink/45">
-          {["日", "月", "火", "水", "木", "金", "土"].map((day) => (
-            <span key={day}>{day}</span>
-          ))}
+          {["日", "月", "火", "水", "木", "金", "土"].map((day) => <span key={day}>{day}</span>)}
         </div>
         <div className="mt-2 grid grid-cols-7 gap-1">
           {cells.map((cell, index) =>
@@ -213,10 +206,12 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; monthKey: 
                 onClick={() => setSelectedDate(cell.date)}
                 className={
                   selectedDate === cell.date
-                    ? "min-h-[58px] rounded-xl border-2 border-leaf bg-emerald-50 p-1 text-left transition active:scale-[0.98]"
-                    : cell.total > 0
-                      ? "min-h-[58px] rounded-xl border border-emerald-900/10 bg-white p-1 text-left transition active:scale-[0.98]"
-                      : "min-h-[58px] rounded-xl bg-cream/45 p-1 text-left transition active:scale-[0.98]"
+                    ? "min-h-[62px] rounded-xl border-2 border-leaf bg-emerald-50 p-1 text-left transition active:scale-[0.98]"
+                    : cell.total / maxDailyTotal > 0.7
+                      ? "min-h-[62px] rounded-xl border border-warn/30 bg-red-50 p-1 text-left transition active:scale-[0.98]"
+                      : cell.total > 0
+                        ? "min-h-[62px] rounded-xl border border-emerald-900/10 bg-white p-1 text-left transition active:scale-[0.98]"
+                        : "min-h-[62px] rounded-xl bg-cream/45 p-1 text-left transition active:scale-[0.98]"
                 }
               >
                 <span className="block text-xs font-black text-ink">{cell.day}</span>
@@ -226,11 +221,12 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; monthKey: 
                     <span className="mt-1 flex gap-0.5">
                       {Array.from(new Set(cell.expenses.map((expense) => expense.categoryId))).slice(0, 3).map((categoryId) => {
                         const category = getCategory(data, categoryId);
-                        return <span key={categoryId} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: category?.color ?? "#2f8f6b" }} />;
+                        const rate = categoryRate.get(categoryId) ?? 0;
+                        const outline = rate >= 1 ? "ring-1 ring-warn" : rate >= 0.8 ? "ring-1 ring-amber-400" : "";
+                        return <span key={categoryId} className={`h-1.5 w-1.5 rounded-full ${outline}`} style={{ backgroundColor: category?.color ?? "#2f8f6b" }} />;
                       })}
                       {new Set(cell.expenses.map((expense) => expense.categoryId)).size > 3 ? <span className="text-[9px] leading-none text-ink/45">+</span> : null}
                     </span>
-                    <span className={cell.total / maxDailyTotal > 0.7 ? "mt-1 block h-1.5 rounded-full bg-warn" : "mt-1 block h-1.5 rounded-full bg-leaf"} />
                   </>
                 ) : null}
               </button>
@@ -285,39 +281,24 @@ function CalendarExpenseEdit({ data, expense, categories }: { data: BudgetData; 
         <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
         <input className="mobile-input" name="amount" type="number" inputMode="numeric" defaultValue={expense.amount} />
         <select className="mobile-input" name="categoryId" defaultValue={expense.categoryId}>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.icon} {category.name}
-            </option>
-          ))}
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.icon} {category.name}</option>)}
         </select>
         <input className="mobile-input" name="date" type="date" defaultValue={expense.date} />
         <select className="mobile-input" name="payer" defaultValue={expense.payer}>
           <option value="">未選択</option>
-          {data.members.map((member) => (
-            <option key={member.id}>{member.name}</option>
-          ))}
+          {data.members.map((member) => <option key={member.id}>{member.name}</option>)}
           <option value="共通財布">共通財布</option>
         </select>
         <input type="hidden" name="paidByType" value={expense.paidByType ?? (expense.payer === "共通財布" ? "shared_wallet" : "member")} />
         <input type="hidden" name="paidByUserId" value={expense.paidByUserId ?? ""} />
         <select className="mobile-input" name="target" defaultValue={expense.target}>
-          {Object.entries(targetLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
+          {Object.entries(targetLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <input className="mobile-input" name="location" defaultValue={expense.location ?? ""} placeholder="お店・場所" />
         <input className="mobile-input" name="memo" defaultValue={expense.memo} placeholder="メモ" />
         <FormSubmitButton idleLabel="保存する" pendingLabel="保存中..." />
       </form>
-      <form
-        action={deleteExpense}
-        onSubmit={(event) => {
-          if (!window.confirm("この支出を削除しますか？")) event.preventDefault();
-        }}
-      >
+      <form action={deleteExpense} onSubmit={(event) => { if (!window.confirm("この支出を削除しますか？")) event.preventDefault(); }}>
         <input type="hidden" name="id" value={expense.id} />
         <FormSubmitButton idleLabel="削除する" pendingLabel="削除中..." className="min-h-12 w-full rounded-2xl bg-red-50 px-4 py-3 text-base font-black text-warn transition active:scale-[0.98] disabled:opacity-50" />
       </form>
@@ -330,14 +311,9 @@ function ComparisonRow({ label, current, compared, diff, target }: { label: stri
     <div className="rounded-2xl bg-cream/60 p-3">
       <div className="flex items-center justify-between gap-3">
         <p className="font-bold text-ink">{label}</p>
-        <p className={diff >= 0 ? "font-black text-warn" : "font-black text-leaf"}>
-          {diff >= 0 ? "+" : ""}
-          {yen(diff)}
-        </p>
+        <p className={diff >= 0 ? "font-black text-warn" : "font-black text-leaf"}>{diff >= 0 ? "+" : ""}{yen(diff)}</p>
       </div>
-      <p className="mt-1 text-sm text-ink/60">
-        対象月 {yen(current)} / {target} {yen(compared)}
-      </p>
+      <p className="mt-1 text-sm text-ink/60">対象月 {yen(current)} / {target} {yen(compared)}</p>
     </div>
   );
 }

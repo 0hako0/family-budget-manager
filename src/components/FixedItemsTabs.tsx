@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { createFixedCost, createIncome, createLoan, createSaving, deleteFixedCost, deleteIncome, deleteLoan, deleteSaving } from "@/app/actions";
 import { getCategory, getPlannedIncomes } from "@/lib/budget";
+import { getCurrentMonthPeriodJST, getLastDayOfMonth } from "@/lib/date";
 import { yen } from "@/lib/format";
 import type { BudgetData, FixedCost, Income, Loan, Saving } from "@/lib/types";
 import { FormSubmitButton } from "./FormSubmitButton";
@@ -65,7 +66,7 @@ function FixedCostPanel({ data, categories }: { data: BudgetData; categories: Ar
       </details>
       <ItemList empty="まだ固定費がありません">
         {data.fixedCosts.map((cost) => (
-          <ItemCard key={cost.id} title={cost.name} amount={yen(cost.amount)} meta={`${getCategory(data, cost.categoryId)?.name ?? "未分類"} / ${cost.paidOn}日 / ${cost.payer || "支払者未設定"}`}>
+          <ItemCard key={cost.id} title={cost.name} amount={yen(cost.amount)} meta={`${getCategory(data, cost.categoryId)?.name ?? "未分類"} / 毎月${cost.paidOn}日 / 次回: ${nextMonthlyDate(cost.paidOn)} / ${cost.payer || "支払者未設定"}`}>
             {cost.reviewMemo ? <p>{cost.reviewMemo}</p> : null}
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
@@ -114,8 +115,8 @@ function IncomePanel({ data, categories }: { data: BudgetData; categories: Array
         {data.incomes.map((income) => {
           const planned = plannedIncomes.find((item) => item.id === income.id);
           return (
-            <ItemCard key={income.id} title={income.name} amount={yen(income.amount)} meta={`${income.recurring ? planned?.paidOn ?? income.paidOn : income.paidOn} / ${income.earner || "収入者未設定"} / ${getCategory(data, income.categoryId)?.name ?? "未分類"}`}>
-              <p>{income.recurring ? `毎月繰り返し: あり（今月は ${planned?.paidOn ?? "対象外"} に展開）` : "毎月繰り返し: なし"}</p>
+            <ItemCard key={income.id} title={income.name} amount={yen(income.amount)} meta={`${income.recurring ? `毎月${Number(income.paidOn.slice(8, 10))}日 / 次回: ${planned?.paidOn ?? "対象外"}` : income.paidOn} / ${income.earner || "収入者未設定"} / ${getCategory(data, income.categoryId)?.name ?? "未分類"}`}>
+              <p>{income.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"}</p>
               <details className="mt-3 rounded-2xl bg-white p-3">
                 <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
                 <div className="mt-3"><IncomeForm data={data} categories={categories} income={income} /></div>
@@ -155,7 +156,7 @@ function SavingPanel({ data, categories }: { data: BudgetData; categories: Array
       </details>
       <ItemList empty="まだ貯金・投資がありません">
         {data.savings.map((saving) => (
-          <ItemCard key={saving.id} title={saving.name} amount={yen(saving.amount)} meta={getCategory(data, saving.categoryId)?.name ?? "未分類"}>
+          <ItemCard key={saving.id} title={saving.name} amount={yen(saving.amount)} meta={`${getCategory(data, saving.categoryId)?.name ?? "未分類"} / ${saving.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"}`}>
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
               <div className="mt-3"><SavingForm data={data} categories={categories} saving={saving} /></div>
@@ -193,7 +194,7 @@ function LoanPanel({ data }: { data: BudgetData }) {
       </details>
       <ItemList empty="まだローンがありません">
         {data.loans.map((loan) => (
-          <ItemCard key={loan.id} title={loan.name} amount={yen(loan.monthlyPayment)} meta={`支払日 ${loan.paidOn}日 / 残債 ${yen(loan.remainingBalance)} / 金利 ${loan.interestRate}%`}>
+          <ItemCard key={loan.id} title={loan.name} amount={yen(loan.monthlyPayment)} meta={`毎月${loan.paidOn}日 / 次回: ${nextMonthlyDate(loan.paidOn)} / 残債 ${yen(loan.remainingBalance)} / 金利 ${loan.interestRate}%`}>
             {loan.memo ? <p>{loan.memo}</p> : null}
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
@@ -301,4 +302,10 @@ function DeleteForm({ action, id, label }: { action: (formData: FormData) => voi
       <FormSubmitButton idleLabel="削除" pendingLabel="削除中..." className="min-h-11 rounded-xl bg-red-50 px-4 text-sm font-bold text-warn transition active:scale-[0.98] disabled:opacity-50" />
     </form>
   );
+}
+
+function nextMonthlyDate(day: number) {
+  const period = getCurrentMonthPeriodJST();
+  const safeDay = Math.min(day, getLastDayOfMonth(period.year, period.month));
+  return `${period.monthKey}-${String(safeDay).padStart(2, "0")}`;
 }

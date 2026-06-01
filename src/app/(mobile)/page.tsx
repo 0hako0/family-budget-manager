@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { MetricCard } from "@/components/MetricCard";
-import { getBudgetConsumption, getMemberBurdenShares, getMonthlyCategoryBudgetProgress, getNextIncome, getRemainingDays, getTotals } from "@/lib/budget";
+import { getBudgetConsumption, getMemberBurdenShares, getMonthlyCategoryBudgetProgress, getMonthlyPayerBreakdown, getNextIncome, getRemainingDays, getTotals } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import { getCurrentMonthPeriodJST } from "@/lib/date";
 import { yen } from "@/lib/format";
@@ -18,6 +18,7 @@ export default async function Home() {
   const consumption = getBudgetConsumption(data, referenceDate);
   const consumptionPercent = Math.round(consumption.rate * 100);
   const consumptionTone = consumption.rate >= 1 ? "bg-warn" : consumption.rate >= 0.8 ? "bg-amber-400" : "bg-leaf";
+  const payerBreakdown = getMonthlyPayerBreakdown(data, referenceDate);
 
   return (
     <div className="grid gap-5">
@@ -78,15 +79,26 @@ export default async function Home() {
 
       {data.members.length > 0 ? (
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-black text-ink">負担割合</h2>
+          <h2 className="text-base font-black text-ink">今月の支払内訳</h2>
           <div className="mt-3 grid gap-2">
-            {data.members.map((member) => (
-              <div key={member.id} className="flex items-center justify-between rounded-2xl bg-cream/60 px-3 py-3 text-sm">
-                <span className="font-bold text-ink">{member.name}</span>
-                <strong className="text-leaf">{Math.round((shares[member.id] ?? member.shareRatio) * 100)}%</strong>
+            {payerBreakdown.map((row) => (
+              <div key={row.id} className="flex items-center justify-between rounded-2xl bg-cream/60 px-3 py-3 text-sm">
+                <span className="font-bold text-ink">{row.label}</span>
+                <strong className="text-leaf">{yen(row.amount)}</strong>
               </div>
             ))}
           </div>
+          <details className="mt-3">
+            <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">収入比率を見る</summary>
+            <div className="mt-2 grid gap-2">
+              {data.members.map((member) => (
+                <div key={member.id} className="flex items-center justify-between rounded-2xl bg-white px-3 py-3 text-sm">
+                  <span className="font-bold text-ink">{member.name}</span>
+                  <strong className="text-leaf">{Math.round((shares[member.id] ?? member.shareRatio) * 100)}%</strong>
+                </div>
+              ))}
+            </div>
+          </details>
         </section>
       ) : null}
 

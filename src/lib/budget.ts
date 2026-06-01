@@ -95,6 +95,12 @@ export function getMonthlyCategoryBudgetProgress(data: BudgetData, referenceDate
         rate: budget === 0 ? 0 : used / budget,
         remaining: budget - used
       };
+    })
+    .sort((a, b) => {
+      if (b.rate !== a.rate) return b.rate - a.rate;
+      if (b.used !== a.used) return b.used - a.used;
+      if (Number(b.category.favorite) !== Number(a.category.favorite)) return Number(b.category.favorite) - Number(a.category.favorite);
+      return a.category.sortOrder - b.category.sortOrder;
     });
 }
 
@@ -174,6 +180,17 @@ export function getBudgetConsumption(data: BudgetData, referenceDate = new Date(
   };
 }
 
+export function getMonthlyPayerBreakdown(data: BudgetData, referenceDate = new Date()) {
+  const scoped = getMonthScopedData(data, referenceDate);
+  const memberRows = data.members.map((member) => ({
+    id: member.id,
+    label: member.name,
+    amount: sumBy(scoped.expenses.filter((expense) => expense.paidByType !== "shared_wallet" && expense.payer === member.name), (expense) => expense.amount)
+  }));
+  const sharedWalletAmount = sumBy(scoped.expenses.filter((expense) => expense.paidByType === "shared_wallet" || expense.payer === "共通財布"), (expense) => expense.amount);
+  return [...memberRows, { id: "shared_wallet", label: "共通財布", amount: sharedWalletAmount }];
+}
+
 export function createCurrentMonthlySummary(data: BudgetData, referenceDate = new Date()): MonthlySummary {
   const totals = getTotals(data, referenceDate);
   const period = getMonthBudgetPeriod(referenceDate);
@@ -203,7 +220,11 @@ export function getMonthlyTrend(data: BudgetData, referenceDate = new Date()) {
     .map((summary) => ({
       month: summary.month.slice(5),
       income: summary.incomeTotal,
-      spending: summary.fixedCostTotal + summary.loanTotal + summary.savingTotal + summary.variableExpenseTotal
+      spending: summary.fixedCostTotal + summary.loanTotal + summary.savingTotal + summary.variableExpenseTotal,
+      remaining: summary.remainingBudget,
+      saving: summary.savingTotal,
+      fixedCost: summary.fixedCostTotal,
+      variableExpense: summary.variableExpenseTotal
     }));
 }
 

@@ -33,7 +33,7 @@ export default async function SetupPage({ searchParams }: { searchParams?: { err
         </div>
         <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="groupName" placeholder="家計グループ名" defaultValue="わが家の家計" required disabled={!canUseSetup} />
         <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="displayName" placeholder="自分の表示名" required disabled={!canUseSetup} />
-        <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="shareRatio" type="number" inputMode="numeric" min="0" max="100" defaultValue="50" placeholder="自分の負担割合%" disabled={!canUseSetup} />
+        <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="shareRatio" type="number" inputMode="numeric" min="0" max="100" defaultValue="50" placeholder="自分の負担割合" disabled={!canUseSetup} />
         <input type="hidden" name="burdenRule" value="custom" />
         {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
         <button className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white transition active:scale-[0.98] disabled:bg-ink/20" type="submit" disabled={!canUseSetup}>
