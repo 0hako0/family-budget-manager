@@ -91,7 +91,7 @@ export default async function Home() {
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">もっと見る</summary>
         <section className="mt-3 grid gap-3 sm:grid-cols-2">
-          <MetricCard label="収入" value={yen(totals.incomeTotal)} />
+          <MetricCard label="収入予定" value={yen(totals.incomeTotal)} />
           <MetricCard label="固定費" value={yen(totals.fixedCostTotal)} />
           <MetricCard label="ローン" value={yen(totals.loanTotal)} />
           <MetricCard label="貯金・投資" value={yen(totals.savingTotal)} tone="accent" />

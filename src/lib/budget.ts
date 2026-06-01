@@ -1,12 +1,13 @@
 import {
   getJSTDayOfMonth,
+  getLastDayOfMonth,
   getMonthBudgetPeriod,
   getReferenceDateFromMonthKey,
   getTodayJSTDateString,
   isDateInMonthJST,
   shiftMonthKey
 } from "./date";
-import type { BudgetData, BurdenRule, CategoryKind, CompareTarget, Expense, MonthlySummary } from "./types";
+import type { BudgetData, BurdenRule, CategoryKind, CompareTarget, Expense, Income, MonthlySummary } from "./types";
 
 export function sumBy<T>(items: T[], getValue: (item: T) => number) {
   return items.reduce((total, item) => total + getValue(item), 0);
@@ -32,15 +33,41 @@ export function getRemainingDays(referenceDate = new Date()) {
   return Math.max(1, period.totalDays - today + 1);
 }
 
+export function getPlannedIncomes(data: BudgetData, referenceDate = new Date()): Income[] {
+  const period = getMonthBudgetPeriod(referenceDate);
+  return data.incomes
+    .map((income) => {
+      if (!income.recurring) return income;
+
+      const originalDay = Number(income.paidOn.slice(8, 10));
+      const day = Math.min(originalDay || 1, getLastDayOfMonth(period.year, period.month));
+      const paidOn = `${period.monthKey}-${String(day).padStart(2, "0")}`;
+      return { ...income, paidOn };
+    })
+    .filter((income) => isDateInMonthJST(income.paidOn, referenceDate));
+}
+
 export function getMonthScopedData(data: BudgetData, referenceDate = new Date()) {
   return {
     ...data,
-    incomes: data.incomes.filter((income) => isDateInMonthJST(income.paidOn, referenceDate)),
+    incomes: getPlannedIncomes(data, referenceDate),
     savings: data.savings,
     fixedCosts: data.fixedCosts,
     loans: data.loans,
     expenses: data.expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate))
   };
+}
+
+export function getPaidIncomes(data: BudgetData, referenceDate = new Date()) {
+  const today = getTodayJSTDateString(referenceDate);
+  return getPlannedIncomes(data, referenceDate).filter((income) => income.paidOn <= today);
+}
+
+export function getNextIncome(data: BudgetData, referenceDate = new Date()) {
+  const today = getTodayJSTDateString(referenceDate);
+  return getPlannedIncomes(data, referenceDate)
+    .filter((income) => income.paidOn >= today)
+    .sort((a, b) => a.paidOn.localeCompare(b.paidOn))[0];
 }
 
 export function getTotals(data: BudgetData, referenceDate = new Date()) {
@@ -76,18 +103,6 @@ export function getTotals(data: BudgetData, referenceDate = new Date()) {
     fixedCostRate: incomeTotal === 0 ? 0 : fixedCostTotal / incomeTotal,
     variableExpenseRate: incomeTotal === 0 ? 0 : variableExpenseTotal / incomeTotal
   };
-}
-
-export function getPaidIncomes(data: BudgetData, referenceDate = new Date()) {
-  const today = getTodayJSTDateString(referenceDate);
-  return getMonthScopedData(data, referenceDate).incomes.filter((income) => income.paidOn <= today);
-}
-
-export function getNextIncome(data: BudgetData, referenceDate = new Date()) {
-  const today = getTodayJSTDateString(referenceDate);
-  return getMonthScopedData(data, referenceDate)
-    .incomes.filter((income) => income.paidOn >= today)
-    .sort((a, b) => a.paidOn.localeCompare(b.paidOn))[0];
 }
 
 export function getBudgetConsumption(data: BudgetData, referenceDate = new Date()) {
@@ -284,7 +299,7 @@ export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.
   }
 
   const incomeByName = new Map<string, number>();
-  data.incomes.forEach((income) => {
+  getPlannedIncomes(data).forEach((income) => {
     incomeByName.set(income.earner, (incomeByName.get(income.earner) ?? 0) + income.amount);
   });
   const totalIncome = sumBy(data.members, (member) => incomeByName.get(member.name) ?? 0);

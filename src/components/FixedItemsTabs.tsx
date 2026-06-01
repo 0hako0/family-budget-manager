@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { createFixedCost, createIncome, createLoan, createSaving, deleteFixedCost, deleteIncome, deleteLoan, deleteSaving } from "@/app/actions";
-import { getCategory } from "@/lib/budget";
+import { getCategory, getPlannedIncomes } from "@/lib/budget";
 import { yen } from "@/lib/format";
 import type { BudgetData, FixedCost, Income, Loan, Saving } from "@/lib/types";
 import { FormSubmitButton } from "./FormSubmitButton";
@@ -11,7 +11,7 @@ const inputClass = "mobile-input";
 const tabs = ["固定費", "収入", "貯金・投資", "ローン"] as const;
 
 export function FixedItemsTabs({ data, initialTab = "固定費", errorMessage }: { data: BudgetData; initialTab?: (typeof tabs)[number]; errorMessage?: string }) {
-  const [tab, setTab] = useStateSafe(initialTab);
+  const [tab, setTab] = useState(initialTab);
   const fixedCategories = data.categories.filter((category) => category.kind === "fixed_cost" && !category.archived);
   const incomeCategories = data.categories.filter((category) => category.kind === "income" && !category.archived);
   const savingCategories = data.categories.filter((category) => category.kind === "saving" && !category.archived);
@@ -36,10 +36,6 @@ export function FixedItemsTabs({ data, initialTab = "固定費", errorMessage }:
       {tab === "ローン" ? <LoanPanel data={data} /> : null}
     </div>
   );
-}
-
-function useStateSafe<T>(initialValue: T) {
-  return useState(initialValue);
 }
 
 function PanelSummary({ items }: { items: Array<{ label: string; value: string; tone?: "warn" | "accent" }> }) {
@@ -105,7 +101,8 @@ function FixedCostForm({ data, categories, cost }: { data: BudgetData; categorie
 }
 
 function IncomePanel({ data, categories }: { data: BudgetData; categories: Array<{ id: string; name: string }> }) {
-  const total = data.incomes.reduce((sum, income) => sum + income.amount, 0);
+  const plannedIncomes = getPlannedIncomes(data);
+  const total = plannedIncomes.reduce((sum, income) => sum + income.amount, 0);
   return (
     <section className="grid gap-4">
       <PanelSummary items={[{ label: "今月の収入予定", value: yen(total), tone: "accent" }]} />
@@ -114,15 +111,19 @@ function IncomePanel({ data, categories }: { data: BudgetData; categories: Array
         <div className="mt-3"><IncomeForm data={data} categories={categories} /></div>
       </details>
       <ItemList empty="まだ収入がありません">
-        {data.incomes.map((income) => (
-          <ItemCard key={income.id} title={income.name} amount={yen(income.amount)} meta={`${income.paidOn} / ${income.earner || "収入者未設定"} / ${getCategory(data, income.categoryId)?.name ?? "未分類"}`}>
-            <details className="mt-3 rounded-2xl bg-white p-3">
-              <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
-              <div className="mt-3"><IncomeForm data={data} categories={categories} income={income} /></div>
-            </details>
-            <DeleteForm action={deleteIncome} id={income.id} label="収入" />
-          </ItemCard>
-        ))}
+        {data.incomes.map((income) => {
+          const planned = plannedIncomes.find((item) => item.id === income.id);
+          return (
+            <ItemCard key={income.id} title={income.name} amount={yen(income.amount)} meta={`${income.recurring ? planned?.paidOn ?? income.paidOn : income.paidOn} / ${income.earner || "収入者未設定"} / ${getCategory(data, income.categoryId)?.name ?? "未分類"}`}>
+              <p>{income.recurring ? `毎月繰り返し: あり（今月は ${planned?.paidOn ?? "対象外"} に展開）` : "毎月繰り返し: なし"}</p>
+              <details className="mt-3 rounded-2xl bg-white p-3">
+                <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
+                <div className="mt-3"><IncomeForm data={data} categories={categories} income={income} /></div>
+              </details>
+              <DeleteForm action={deleteIncome} id={income.id} label="収入" />
+            </ItemCard>
+          );
+        })}
       </ItemList>
     </section>
   );
@@ -234,15 +235,30 @@ function HiddenBase({ data, id }: { data: BudgetData; id?: string }) {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="grid gap-1 text-sm font-bold text-ink/65">{label}{children}</label>;
+  return (
+    <label className="grid gap-1 text-sm font-bold text-ink/65">
+      {label}
+      {children}
+    </label>
+  );
 }
 
 function CategorySelect({ categories, defaultValue = "" }: { categories: Array<{ id: string; name: string }>; defaultValue?: string }) {
-  return <select className={inputClass} name="categoryId" defaultValue={defaultValue}><option value="">未選択</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>;
+  return (
+    <select className={inputClass} name="categoryId" defaultValue={defaultValue}>
+      <option value="">未選択</option>
+      {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+    </select>
+  );
 }
 
 function RecurringSelect({ defaultValue = true }: { defaultValue?: boolean }) {
-  return <select className={inputClass} name="recurring" defaultValue={String(defaultValue)}><option value="true">あり</option><option value="false">なし</option></select>;
+  return (
+    <select className={inputClass} name="recurring" defaultValue={String(defaultValue)}>
+      <option value="true">あり</option>
+      <option value="false">なし</option>
+    </select>
+  );
 }
 
 function PayerSelect({ data, name, defaultValue, includeSharedWallet = true }: { data: BudgetData; name: string; defaultValue?: string; includeSharedWallet?: boolean }) {
@@ -256,7 +272,11 @@ function PayerSelect({ data, name, defaultValue, includeSharedWallet = true }: {
 }
 
 function ItemList({ empty, children }: { empty: string; children: React.ReactNode }) {
-  return <section className="rounded-[22px] bg-white p-4 shadow-sm">{React.Children.count(children) === 0 ? <p className="text-sm font-bold text-ink/60">{empty}</p> : <div className="grid gap-3">{children}</div>}</section>;
+  return (
+    <section className="rounded-[22px] bg-white p-4 shadow-sm">
+      {React.Children.count(children) === 0 ? <p className="text-sm font-bold text-ink/60">{empty}</p> : <div className="grid gap-3">{children}</div>}
+    </section>
+  );
 }
 
 function ItemCard({ title, amount, meta, children }: { title: string; amount: string; meta: string; children: React.ReactNode }) {
