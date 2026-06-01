@@ -38,11 +38,9 @@ export function getPlannedIncomes(data: BudgetData, referenceDate = new Date()):
   return data.incomes
     .map((income) => {
       if (!income.recurring) return income;
-
       const originalDay = Number(income.paidOn.slice(8, 10));
       const day = Math.min(originalDay || 1, getLastDayOfMonth(period.year, period.month));
-      const paidOn = `${period.monthKey}-${String(day).padStart(2, "0")}`;
-      return { ...income, paidOn };
+      return { ...income, paidOn: `${period.monthKey}-${String(day).padStart(2, "0")}` };
     })
     .filter((income) => isDateInMonthJST(income.paidOn, referenceDate));
 }
@@ -68,51 +66,6 @@ export function getNextIncome(data: BudgetData, referenceDate = new Date()) {
   return getPlannedIncomes(data, referenceDate)
     .filter((income) => income.paidOn >= today)
     .sort((a, b) => a.paidOn.localeCompare(b.paidOn))[0];
-}
-
-export function getTotals(data: BudgetData, referenceDate = new Date()) {
-  const scoped = getMonthScopedData(data, referenceDate);
-  const incomeTotal = sumBy(scoped.incomes, (income) => income.amount);
-  const paidIncomeTotal = sumBy(getPaidIncomes(data, referenceDate), (income) => income.amount);
-  const savingTotal = sumBy(scoped.savings, (saving) => saving.amount);
-  const fixedCostTotal = sumBy(scoped.fixedCosts, (cost) => cost.amount);
-  const loanTotal = sumBy(scoped.loans, (loan) => loan.monthlyPayment);
-  const variableExpenseTotal = sumBy(scoped.expenses, (expense) => expense.amount);
-  const livingBudget = incomeTotal - savingTotal - fixedCostTotal - loanTotal;
-  const remainingBudget = livingBudget - variableExpenseTotal;
-  const dailyGuide = remainingBudget / getRemainingDays(referenceDate);
-  const elapsedDays = Math.max(1, getJSTDayOfMonth(referenceDate));
-  const averageDailyExpense = variableExpenseTotal / elapsedDays;
-  const projectedVariableExpense = averageDailyExpense * getBudgetDays(referenceDate);
-  const projectedLanding = livingBudget - projectedVariableExpense;
-
-  return {
-    incomeTotal,
-    paidIncomeTotal,
-    savingTotal,
-    fixedCostTotal,
-    loanTotal,
-    variableExpenseTotal,
-    livingBudget,
-    remainingBudget,
-    dailyGuide,
-    projectedVariableExpense,
-    projectedLanding,
-    isOverspending: projectedLanding < 0 || dailyGuide < 0,
-    savingRate: incomeTotal === 0 ? 0 : savingTotal / incomeTotal,
-    fixedCostRate: incomeTotal === 0 ? 0 : fixedCostTotal / incomeTotal,
-    variableExpenseRate: incomeTotal === 0 ? 0 : variableExpenseTotal / incomeTotal
-  };
-}
-
-export function getBudgetConsumption(data: BudgetData, referenceDate = new Date()) {
-  const totals = getTotals(data, referenceDate);
-  const used = totals.fixedCostTotal + totals.loanTotal + totals.savingTotal + totals.variableExpenseTotal;
-  return {
-    used,
-    plannedIncome: totals.incomeTotal,
-    rate: totals.incomeTotal === 0 ? 0 : used / totals.incomeTotal
-  };
 }
 
 export function groupExpensesByCategory(expenses: Expense[]) {
@@ -147,6 +100,80 @@ export function getMonthlyCategoryBudgetProgress(data: BudgetData, referenceDate
 
 export const getCategoryBudgetUsage = getMonthlyCategoryBudgetProgress;
 
+export function getVariableExpenseBudgetTotal(data: BudgetData) {
+  return getCategoriesByKind(data, "expense").reduce((total, category) => total + (category.monthlyBudget ?? 0), 0);
+}
+
+export function getMonthEndForecast(data: BudgetData, referenceDate = new Date()) {
+  const scoped = getMonthScopedData(data, referenceDate);
+  const incomeTotal = sumBy(scoped.incomes, (income) => income.amount);
+  const savingTotal = sumBy(scoped.savings, (saving) => saving.amount);
+  const fixedCostTotal = sumBy(scoped.fixedCosts, (cost) => cost.amount);
+  const loanTotal = sumBy(scoped.loans, (loan) => loan.monthlyPayment);
+  const variableExpenseTotal = sumBy(scoped.expenses, (expense) => expense.amount);
+  const fixedOutflow = savingTotal + fixedCostTotal + loanTotal;
+  const elapsedDays = Math.max(1, getJSTDayOfMonth(referenceDate));
+  const budgetDays = getBudgetDays(referenceDate);
+  const variableBudgetTotal = getVariableExpenseBudgetTotal(data);
+  const paceVariableExpense = (variableExpenseTotal / elapsedDays) * budgetDays;
+  const budgetBasedLanding = incomeTotal - fixedOutflow - variableBudgetTotal;
+  const paceBasedLanding = incomeTotal - fixedOutflow - paceVariableExpense;
+
+  return {
+    fixedOutflow,
+    variableBudgetTotal,
+    paceVariableExpense,
+    budgetBasedLanding,
+    paceBasedLanding,
+    isEarlyMonth: elapsedDays <= 3
+  };
+}
+
+export function getTotals(data: BudgetData, referenceDate = new Date()) {
+  const scoped = getMonthScopedData(data, referenceDate);
+  const incomeTotal = sumBy(scoped.incomes, (income) => income.amount);
+  const paidIncomeTotal = sumBy(getPaidIncomes(data, referenceDate), (income) => income.amount);
+  const savingTotal = sumBy(scoped.savings, (saving) => saving.amount);
+  const fixedCostTotal = sumBy(scoped.fixedCosts, (cost) => cost.amount);
+  const loanTotal = sumBy(scoped.loans, (loan) => loan.monthlyPayment);
+  const variableExpenseTotal = sumBy(scoped.expenses, (expense) => expense.amount);
+  const livingBudget = incomeTotal - savingTotal - fixedCostTotal - loanTotal;
+  const remainingBudget = livingBudget - variableExpenseTotal;
+  const dailyGuide = remainingBudget / getRemainingDays(referenceDate);
+  const forecast = getMonthEndForecast(data, referenceDate);
+
+  return {
+    incomeTotal,
+    paidIncomeTotal,
+    savingTotal,
+    fixedCostTotal,
+    loanTotal,
+    variableExpenseTotal,
+    livingBudget,
+    remainingBudget,
+    dailyGuide,
+    projectedVariableExpense: forecast.paceVariableExpense,
+    projectedLanding: forecast.budgetBasedLanding,
+    paceBasedLanding: forecast.paceBasedLanding,
+    budgetBasedLanding: forecast.budgetBasedLanding,
+    isEarlyMonthForecast: forecast.isEarlyMonth,
+    isOverspending: forecast.budgetBasedLanding < 0 || dailyGuide < 0,
+    savingRate: incomeTotal === 0 ? 0 : savingTotal / incomeTotal,
+    fixedCostRate: incomeTotal === 0 ? 0 : fixedCostTotal / incomeTotal,
+    variableExpenseRate: incomeTotal === 0 ? 0 : variableExpenseTotal / incomeTotal
+  };
+}
+
+export function getBudgetConsumption(data: BudgetData, referenceDate = new Date()) {
+  const totals = getTotals(data, referenceDate);
+  const used = totals.fixedCostTotal + totals.loanTotal + totals.savingTotal + totals.variableExpenseTotal;
+  return {
+    used,
+    plannedIncome: totals.incomeTotal,
+    rate: totals.incomeTotal === 0 ? 0 : used / totals.incomeTotal
+  };
+}
+
 export function createCurrentMonthlySummary(data: BudgetData, referenceDate = new Date()): MonthlySummary {
   const totals = getTotals(data, referenceDate);
   const period = getMonthBudgetPeriod(referenceDate);
@@ -160,7 +187,7 @@ export function createCurrentMonthlySummary(data: BudgetData, referenceDate = ne
     variableExpenseTotal: totals.variableExpenseTotal,
     savingTotal: totals.savingTotal,
     remainingBudget: totals.remainingBudget,
-    landingResult: totals.projectedLanding,
+    landingResult: totals.budgetBasedLanding,
     categoryExpenses: Object.fromEntries(groupExpensesByCategory(scoped.expenses).map((item) => [item.categoryId, item.value])),
     memo: "月締め前のプレビューです。",
     closedAt: ""

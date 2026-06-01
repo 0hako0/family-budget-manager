@@ -46,12 +46,14 @@ export default async function Home() {
             <p className="mt-1 text-2xl font-black text-ink">{yen(totals.dailyGuide)}</p>
             <p className="mt-1 text-xs text-ink/55">残り{remainingDays}日で自動計算</p>
           </div>
-          <div className={totals.isOverspending ? "rounded-2xl bg-red-50 p-4 text-warn" : "rounded-2xl bg-cream/70 p-4 text-leaf"}>
-            <p className="text-sm font-bold">月末予測</p>
+          <div className={totals.budgetBasedLanding < 0 ? "rounded-2xl bg-red-50 p-4 text-warn" : "rounded-2xl bg-cream/70 p-4 text-leaf"}>
+            <p className="text-sm font-bold">月末見込み</p>
             <p className="mt-1 text-xl font-black">
-              {totals.projectedLanding >= 0 ? "+" : ""}
-              {yen(totals.projectedLanding)}
+              {totals.budgetBasedLanding >= 0 ? "+" : ""}
+              {yen(totals.budgetBasedLanding)}
             </p>
+            <p className="mt-1 text-xs text-ink/55">現在ペースの場合 {totals.paceBasedLanding >= 0 ? "+" : ""}{yen(totals.paceBasedLanding)}</p>
+            {totals.isEarlyMonthForecast ? <p className="mt-2 text-xs font-bold text-ink/60">月初は現在ペース予測が大きくブレます。予算ベースで表示しています。</p> : null}
           </div>
         </div>
         <div className="mt-4 grid gap-1 rounded-2xl bg-cream/60 p-3 text-xs font-bold text-ink/60">
