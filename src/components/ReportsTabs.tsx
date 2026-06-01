@@ -273,6 +273,7 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceD
 }
 
 function CalendarExpenseEdit({ data, expense, categories }: { data: BudgetData; expense: (typeof data.expenses)[number]; categories: ReturnType<typeof getCategoriesByKind> }) {
+  const isSharedWallet = expense.paidByType === "shared_wallet" || expense.payer === "共通財布";
   return (
     <div className="mt-3 grid gap-3 border-t border-emerald-900/10 pt-3">
       <form action={createExpense} className="grid gap-2">
@@ -284,15 +285,15 @@ function CalendarExpenseEdit({ data, expense, categories }: { data: BudgetData; 
           {categories.map((category) => <option key={category.id} value={category.id}>{category.icon} {category.name}</option>)}
         </select>
         <input className="mobile-input" name="date" type="date" defaultValue={expense.date} />
-        <select className="mobile-input" name="payer" defaultValue={expense.payer}>
+        <select className="mobile-input" name="payer" defaultValue={isSharedWallet ? "共通財布" : expense.payer}>
           <option value="">未選択</option>
           {data.members.map((member) => <option key={member.id}>{member.name}</option>)}
           <option value="共通財布">共通財布</option>
         </select>
-        <input type="hidden" name="paidByType" value={expense.paidByType ?? (expense.payer === "共通財布" ? "shared_wallet" : "member")} />
+        <input type="hidden" name="paidByType" value={isSharedWallet ? "shared_wallet" : "member"} />
         <input type="hidden" name="paidByUserId" value={expense.paidByUserId ?? ""} />
         <select className="mobile-input" name="target" defaultValue={expense.target}>
-          {Object.entries(targetLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          {Object.entries(targetLabels).map(([targetValue, label]) => <option key={targetValue} value={targetValue}>{label}</option>)}
         </select>
         <input className="mobile-input" name="location" defaultValue={expense.location ?? ""} placeholder="お店・場所" />
         <input className="mobile-input" name="memo" defaultValue={expense.memo} placeholder="メモ" />

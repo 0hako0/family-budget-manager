@@ -4,6 +4,10 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieCh
 
 const colors = ["#2f8f6b", "#2d7dd2", "#f0b85a", "#7e6bd8", "#e18a5a", "#79a97b", "#d94a45", "#5e9fa3"];
 
+function yen(value: unknown) {
+  return `${Number(value).toLocaleString("ja-JP")}円`;
+}
+
 export function CategoryPieChart({ data }: { data: { name: string; value: number }[] }) {
   return (
     <div className="h-64 w-full">
@@ -14,7 +18,7 @@ export function CategoryPieChart({ data }: { data: { name: string; value: number
               <Cell key={entry.name} fill={colors[index % colors.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value) => `${Number(value).toLocaleString("ja-JP")}円`} />
+          <Tooltip formatter={yen} />
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -33,7 +37,7 @@ export function MonthlyTrendChart({
           <CartesianGrid strokeDasharray="3 3" stroke="#e8dcc8" />
           <XAxis dataKey="month" tickLine={false} axisLine={false} />
           <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={(value) => `${Math.round(Number(value) / 10000)}万`} />
-          <Tooltip formatter={(value) => `${Number(value).toLocaleString("ja-JP")}円`} />
+          <Tooltip formatter={yen} />
           <Legend />
           <Line type="monotone" dataKey="income" name="収入" stroke="#2f8f6b" strokeWidth={3} dot={{ r: 3 }} />
           <Line type="monotone" dataKey="spending" name="支出" stroke="#d94a45" strokeWidth={3} dot={{ r: 3 }} />

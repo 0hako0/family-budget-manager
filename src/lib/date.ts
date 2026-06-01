@@ -99,8 +99,9 @@ export function isDateInMonthJST(dateValue: string, referenceDate = new Date()) 
 
 export function getReferenceDateFromMonthKey(monthKey: string) {
   const [yearValue, monthValue] = monthKey.split("-").map(Number);
-  const year = Number.isFinite(yearValue) ? yearValue : toJSTParts().year;
-  const month = Number.isFinite(monthValue) ? monthValue : toJSTParts().month;
+  const current = toJSTParts();
+  const year = Number.isFinite(yearValue) ? yearValue : current.year;
+  const month = Number.isFinite(monthValue) ? monthValue : current.month;
   return new Date(`${formatDateKey(year, month, 1)}T12:00:00+09:00`);
 }
 

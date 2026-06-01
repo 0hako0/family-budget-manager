@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { createFixedCost, createIncome, createLoan, createSaving, deleteFixedCost, deleteIncome, deleteLoan, deleteSaving } from "@/app/actions";
 import { getCategory, getPlannedIncomes } from "@/lib/budget";
-import { getCurrentMonthPeriodJST, getLastDayOfMonth } from "@/lib/date";
+import { getCurrentMonthPeriodJST, getLastDayOfMonth, getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
 import type { BudgetData, FixedCost, Income, Loan, Saving } from "@/lib/types";
 import { FormSubmitButton } from "./FormSubmitButton";
@@ -66,7 +66,7 @@ function FixedCostPanel({ data, categories }: { data: BudgetData; categories: Ar
       </details>
       <ItemList empty="まだ固定費がありません">
         {data.fixedCosts.map((cost) => (
-          <ItemCard key={cost.id} title={cost.name} amount={yen(cost.amount)} meta={`${getCategory(data, cost.categoryId)?.name ?? "未分類"} / 毎月${cost.paidOn}日 / 次回: ${nextMonthlyDate(cost.paidOn)} / ${cost.payer || "支払者未設定"}`}>
+          <ItemCard key={cost.id} title={cost.name} amount={yen(cost.amount)} meta={`${getCategory(data, cost.categoryId)?.name ?? "未分類"} / 毎月${cost.paidOn}日 / 次回 ${nextMonthlyDate(cost.paidOn)} / ${cost.payer || "支払者未設定"}`}>
             {cost.reviewMemo ? <p>{cost.reviewMemo}</p> : null}
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
@@ -115,7 +115,7 @@ function IncomePanel({ data, categories }: { data: BudgetData; categories: Array
         {data.incomes.map((income) => {
           const planned = plannedIncomes.find((item) => item.id === income.id);
           return (
-            <ItemCard key={income.id} title={income.name} amount={yen(income.amount)} meta={`${income.recurring ? `毎月${Number(income.paidOn.slice(8, 10))}日 / 次回: ${planned?.paidOn ?? "対象外"}` : income.paidOn} / ${income.earner || "収入者未設定"} / ${getCategory(data, income.categoryId)?.name ?? "未分類"}`}>
+            <ItemCard key={income.id} title={income.name} amount={yen(income.amount)} meta={`${income.recurring ? `毎月${Number(income.paidOn.slice(8, 10))}日 / 次回 ${planned?.paidOn ?? "対象外"}` : income.paidOn} / ${income.earner || "収入者未設定"} / ${getCategory(data, income.categoryId)?.name ?? "未分類"}`}>
               <p>{income.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"}</p>
               <details className="mt-3 rounded-2xl bg-white p-3">
                 <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
@@ -136,7 +136,7 @@ function IncomeForm({ data, categories, income }: { data: BudgetData; categories
       <HiddenBase data={data} id={income?.id} />
       <Field label="収入名"><input className={inputClass} name="name" defaultValue={income?.name ?? ""} required /></Field>
       <Field label="金額"><input className={inputClass} name="amount" type="number" inputMode="numeric" defaultValue={income?.amount ?? ""} required /></Field>
-      <Field label="入金日"><input className={inputClass} name="paidOn" type="date" defaultValue={income?.paidOn ?? new Date().toISOString().slice(0, 10)} /></Field>
+      <Field label="入金日"><input className={inputClass} name="paidOn" type="date" defaultValue={income?.paidOn ?? getTodayJSTDateString()} /></Field>
       <Field label="収入者"><PayerSelect data={data} name="earner" defaultValue={income?.earner} includeSharedWallet={false} /></Field>
       <Field label="カテゴリ"><CategorySelect categories={categories} defaultValue={income?.categoryId} /></Field>
       <Field label="毎月繰り返し"><RecurringSelect defaultValue={income?.recurring} /></Field>
@@ -194,7 +194,7 @@ function LoanPanel({ data }: { data: BudgetData }) {
       </details>
       <ItemList empty="まだローンがありません">
         {data.loans.map((loan) => (
-          <ItemCard key={loan.id} title={loan.name} amount={yen(loan.monthlyPayment)} meta={`毎月${loan.paidOn}日 / 次回: ${nextMonthlyDate(loan.paidOn)} / 残債 ${yen(loan.remainingBalance)} / 金利 ${loan.interestRate}%`}>
+          <ItemCard key={loan.id} title={loan.name} amount={yen(loan.monthlyPayment)} meta={`毎月${loan.paidOn}日 / 次回 ${nextMonthlyDate(loan.paidOn)} / 残債 ${yen(loan.remainingBalance)} / 金利 ${loan.interestRate}%`}>
             {loan.memo ? <p>{loan.memo}</p> : null}
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>

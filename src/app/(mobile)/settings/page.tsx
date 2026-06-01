@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { updateHouseholdMember, updateHouseholdSettings } from "@/app/actions";
 import { CategoryManager } from "@/components/CategoryManager";
-import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { DataExportTools } from "@/components/DataExportTools";
 import { inputClass } from "@/components/FormCard";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
 import { ListSection } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
@@ -19,6 +20,15 @@ const successMessages: Record<string, string> = {
   household: "家計グループ設定を保存しました",
   member: "メンバー設定を保存しました"
 };
+
+const widgetLabels = [
+  ["widgetMonthEnd", "月末見込み", "monthEnd"],
+  ["widgetPayerBreakdown", "支払内訳", "payerBreakdown"],
+  ["widgetCategoryBudget", "カテゴリ予算", "categoryBudget"],
+  ["widgetSharedWallet", "共通財布", "sharedWallet"],
+  ["widgetIncomeSchedule", "収入予定", "incomeSchedule"],
+  ["widgetBurdenRatio", "負担割合", "burdenRatio"]
+] as const;
 
 export default async function SettingsPage({
   searchParams
@@ -37,14 +47,14 @@ export default async function SettingsPage({
     <div className="grid gap-5">
       <section>
         <h1 className="text-xl font-black text-ink">設定</h1>
-        <p className="mt-1 text-sm text-ink/60">家計グループ、メンバー、カテゴリを管理します。</p>
+        <p className="mt-1 text-sm text-ink/60">家計グループ、メンバー、カテゴリ、出力を管理します。</p>
       </section>
 
       {savedMessage ? <p className="rounded-2xl bg-emerald-50 p-3 text-sm font-bold text-leaf">{savedMessage}</p> : null}
 
       <section className="grid gap-3 sm:grid-cols-2">
         <MetricCard label="家計グループ" value={data.settings.groupName} />
-        <MetricCard label="負担割合" value={burdenLabels[data.settings.burdenRule]} tone="accent" />
+        <MetricCard label="負担割合ルール" value={burdenLabels[data.settings.burdenRule]} tone="accent" />
       </section>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
@@ -57,7 +67,7 @@ export default async function SettingsPage({
           </label>
           <label className="grid gap-1 text-sm font-bold text-ink/65">
             家計アイコンURL
-            <input className={inputClass} name="iconUrl" defaultValue={data.settings.iconUrl ?? ""} placeholder="将来用。空欄でもOK" />
+            <input className={inputClass} name="iconUrl" defaultValue={data.settings.iconUrl ?? ""} placeholder="将来用。空欄でOK" />
           </label>
           <label className="grid gap-1 text-sm font-bold text-ink/65">
             負担割合ルール
@@ -71,6 +81,17 @@ export default async function SettingsPage({
             <input name="saveReceiptImages" type="checkbox" defaultChecked={data.settings.saveReceiptImages} />
             レシート画像を保存する
           </label>
+          <div className="rounded-2xl bg-cream/60 p-3">
+            <p className="text-sm font-black text-ink">ホーム表示</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {widgetLabels.map(([name, label, key]) => (
+                <label key={name} className="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-ink">
+                  <input name={name} type="checkbox" defaultChecked={data.settings.homeWidgets[key]} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
           {searchParams?.settingsError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.settingsError}</p> : null}
           <FormSubmitButton idleLabel="保存する" pendingLabel="保存中..." className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm transition active:scale-[0.98] disabled:bg-ink/20" />
         </form>
@@ -121,6 +142,16 @@ export default async function SettingsPage({
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">CSV出力・バックアップ</summary>
+        <div className="mt-3">
+          <DataExportTools data={data} />
+        </div>
+        <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-xs font-bold text-ink/55">
+          JSONは機種変更や手元バックアップ用の書き出しです。インポートは安全な復元チェックを追加してから有効化します。
+        </p>
+      </details>
+
+      <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">カテゴリ設定</summary>
         <div className="mt-3">
           {searchParams?.categoryError ? <p className="mb-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.categoryError}</p> : null}
@@ -137,7 +168,7 @@ export default async function SettingsPage({
         </div>
       </details>
 
-      <ListSection title="将来用通知設定">
+      <ListSection title="将来用通知設計">
         <div className="grid gap-2">
           {["食費80%超え", "カテゴリ予算超過", "今月ペース超過", "固定費見直し通知"].map((label) => (
             <div key={label} className="rounded-2xl bg-cream/60 px-3 py-3 text-sm font-bold text-ink">{label}</div>

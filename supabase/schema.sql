@@ -22,6 +22,14 @@ create table if not exists public.household_groups (
   invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
   icon_url text,
   save_receipt_images boolean not null default false,
+  home_widgets jsonb not null default '{
+    "monthEnd": true,
+    "payerBreakdown": true,
+    "categoryBudget": true,
+    "sharedWallet": true,
+    "incomeSchedule": true,
+    "burdenRatio": false
+  }'::jsonb,
   burden_rule text not null default 'fifty_fifty' check (burden_rule in ('fifty_fifty', 'custom', 'income_ratio')),
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -32,6 +40,14 @@ alter table public.household_groups add column if not exists created_by uuid ref
 alter table public.household_groups add column if not exists invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 alter table public.household_groups add column if not exists icon_url text;
 alter table public.household_groups add column if not exists save_receipt_images boolean not null default false;
+alter table public.household_groups add column if not exists home_widgets jsonb not null default '{
+  "monthEnd": true,
+  "payerBreakdown": true,
+  "categoryBudget": true,
+  "sharedWallet": true,
+  "incomeSchedule": true,
+  "burdenRatio": false
+}'::jsonb;
 alter table public.household_groups alter column invite_code set default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 update public.household_groups
 set invite_code = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
@@ -285,6 +301,18 @@ create table if not exists public.monthly_summaries (
   unique (household_group_id, target_month)
 );
 
+create table if not exists public.shared_wallet_transactions (
+  id uuid primary key default gen_random_uuid(),
+  household_group_id uuid not null references public.household_groups(id) on delete cascade,
+  member_id uuid references public.household_members(id) on delete set null,
+  type text not null default 'deposit' check (type in ('deposit', 'withdrawal', 'adjustment')),
+  amount integer not null check (amount >= 0),
+  occurred_on date not null,
+  memo text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.users enable row level security;
 alter table public.household_groups enable row level security;
 alter table public.household_members enable row level security;
@@ -297,6 +325,7 @@ alter table public.fixed_costs enable row level security;
 alter table public.loans enable row level security;
 alter table public.expenses enable row level security;
 alter table public.monthly_summaries enable row level security;
+alter table public.shared_wallet_transactions enable row level security;
 
 create or replace function public.is_household_member(group_id uuid)
 returns boolean
@@ -528,7 +557,7 @@ do $$
 declare
   table_name text;
 begin
-  foreach table_name in array array['category_budgets', 'incomes', 'savings', 'fixed_costs', 'loans', 'expenses', 'monthly_summaries']
+  foreach table_name in array array['category_budgets', 'incomes', 'savings', 'fixed_costs', 'loans', 'expenses', 'monthly_summaries', 'shared_wallet_transactions']
   loop
     execute format('drop policy if exists "household data select" on public.%I', table_name);
     execute format('create policy "household data select" on public.%I for select to authenticated using (public.is_household_member(household_group_id))', table_name);
@@ -551,6 +580,7 @@ create index if not exists idx_fixed_costs_household_group_id on public.fixed_co
 create index if not exists idx_loans_household_group_id on public.loans(household_group_id);
 create index if not exists idx_expenses_household_group_id_spent_on on public.expenses(household_group_id, spent_on);
 create index if not exists idx_monthly_summaries_household_group_id on public.monthly_summaries(household_group_id);
+create index if not exists idx_shared_wallet_transactions_household_group_id on public.shared_wallet_transactions(household_group_id, occurred_on);
 
 drop trigger if exists set_users_updated_at on public.users;
 create trigger set_users_updated_at before update on public.users for each row execute function public.set_updated_at();
@@ -576,3 +606,5 @@ drop trigger if exists set_expenses_updated_at on public.expenses;
 create trigger set_expenses_updated_at before update on public.expenses for each row execute function public.set_updated_at();
 drop trigger if exists set_monthly_summaries_updated_at on public.monthly_summaries;
 create trigger set_monthly_summaries_updated_at before update on public.monthly_summaries for each row execute function public.set_updated_at();
+drop trigger if exists set_shared_wallet_transactions_updated_at on public.shared_wallet_transactions;
+create trigger set_shared_wallet_transactions_updated_at before update on public.shared_wallet_transactions for each row execute function public.set_updated_at();

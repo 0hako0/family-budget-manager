@@ -8,7 +8,7 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { calculateSharedBurden, getCategoriesByKind, getCategory, getMonthScopedData } from "@/lib/budget";
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
-import type { BudgetData, Expense, ExpenseTarget } from "@/lib/types";
+import type { BudgetData, Expense, ExpenseTarget, PaidByType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
 import { MobileCard, MobileCards } from "./MobileCards";
@@ -53,7 +53,10 @@ function ExpenseEditForm({
   categories: ReturnType<typeof getCategoriesByKind>;
   onCancel: () => void;
 }) {
+  const isInitialSharedWallet = expense.paidByType === "shared_wallet" || expense.payer === "共通財布";
   const [categoryId, setCategoryId] = useState(expense.categoryId);
+  const [payer, setPayer] = useState(isInitialSharedWallet ? "共通財布" : expense.payer);
+  const [paidByType, setPaidByType] = useState<PaidByType>(isInitialSharedWallet ? "shared_wallet" : "member");
   const [error, setError] = useState("");
 
   return (
@@ -90,15 +93,16 @@ function ExpenseEditForm({
         <input name="date" type="date" defaultValue={expense.date || getTodayJSTDateString()} className="mobile-input" />
       </Field>
       <Field label="支払者">
-        <select name="payer" defaultValue={expense.payer} className="mobile-input">
-          <option value="">未選択</option>
-          {data.members.map((member) => (
-            <option key={member.id}>{member.name}</option>
-          ))}
-          <option value="共通財布">共通財布</option>
-        </select>
-        <input type="hidden" name="paidByType" value={expense.paidByType ?? (expense.payer === "共通財布" ? "shared_wallet" : "member")} />
-        <input type="hidden" name="paidByUserId" value={expense.paidByUserId ?? ""} />
+        <PayerSelect
+          data={data}
+          value={payer}
+          onChange={(next) => {
+            setPayer(next);
+            setPaidByType(next === "共通財布" ? "shared_wallet" : "member");
+          }}
+        />
+        <input type="hidden" name="paidByType" value={paidByType} />
+        <input type="hidden" name="paidByUserId" value={paidByType === "member" ? data.members.find((member) => member.name === payer)?.userId ?? "" : ""} />
       </Field>
       <Field label="対象">
         <select name="target" defaultValue={expense.target} className="mobile-input">
@@ -113,7 +117,7 @@ function ExpenseEditForm({
         <input name="location" defaultValue={expense.location ?? ""} className="mobile-input" placeholder="スーパー、Amazon など" />
       </Field>
       <Field label="メモ">
-        <input name="memo" defaultValue={expense.memo} className="mobile-input" placeholder="週末まとめ買いなど" />
+        <input name="memo" defaultValue={expense.memo} className="mobile-input" placeholder="週末まとめ買い など" />
       </Field>
       {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{error}</p> : null}
       <div className="grid grid-cols-2 gap-2">
@@ -133,7 +137,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [date, setDate] = useState(getTodayJSTDateString());
   const [payer, setPayer] = useState(data.members[0]?.name ?? "");
-  const [paidByType, setPaidByType] = useState<"member" | "shared_wallet">("member");
+  const [paidByType, setPaidByType] = useState<PaidByType>("member");
   const [target, setTarget] = useState<ExpenseTarget>("shared");
   const [location, setLocation] = useState("");
   const [memo, setMemo] = useState("");
@@ -251,27 +255,20 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
               <input className="mobile-input" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </Field>
             <Field label="支払者">
-              <select
-                className="mobile-input"
-                name="payer"
+              <PayerSelect
+                data={data}
                 value={paidByType === "shared_wallet" ? "共通財布" : payer}
-                onChange={(event) => {
-                  if (event.target.value === "共通財布") {
+                onChange={(next) => {
+                  if (next === "共通財布") {
                     setPaidByType("shared_wallet");
                     setPayer("共通財布");
                     setTarget("shared");
                   } else {
                     setPaidByType("member");
-                    setPayer(event.target.value);
+                    setPayer(next);
                   }
                 }}
-              >
-                <option value="">未選択</option>
-                {data.members.map((member) => (
-                  <option key={member.id}>{member.name}</option>
-                ))}
-                <option value="共通財布">共通財布</option>
-              </select>
+              />
               <input type="hidden" name="paidByType" value={paidByType} />
               <input type="hidden" name="paidByUserId" value={paidByType === "member" ? data.members.find((member) => member.name === payer)?.userId ?? "" : ""} />
             </Field>
@@ -288,7 +285,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
               <input className="mobile-input" name="location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="イオン、Amazon など" />
             </Field>
             <Field label="メモ">
-              <input className="mobile-input" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="週末まとめ買いなど" />
+              <input className="mobile-input" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="週末まとめ買い など" />
             </Field>
           </div>
         </details>
@@ -308,11 +305,11 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
               }}
             />
             {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for an unsaved local receipt image */}
-            {receiptPreview ? <img src={receiptPreview} alt="レシートプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
+            {receiptPreview ? <img src={receiptPreview} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
             <button
               className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 py-3 text-sm font-black text-leaf transition active:scale-[0.98]"
               type="button"
-              onClick={() => setOcrMessage("OCRはPhase2の仮実装です。読み取り後は必ず内容を確認してから登録します。")}
+              onClick={() => setOcrMessage("OCRは次フェーズの確認画面付き実装として残しています。読み取り結果は必ず確認してから登録する設計です。")}
             >
               写真から読み取る
             </button>
@@ -390,6 +387,18 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         </Table>
       </ListSection>
     </div>
+  );
+}
+
+function PayerSelect({ data, value, onChange }: { data: BudgetData; value: string; onChange: (value: string) => void }) {
+  return (
+    <select className="mobile-input" name="payer" value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">未選択</option>
+      {data.members.map((member) => (
+        <option key={member.id}>{member.name}</option>
+      ))}
+      <option value="共通財布">共通財布</option>
+    </select>
   );
 }
 

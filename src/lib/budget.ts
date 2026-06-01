@@ -52,7 +52,8 @@ export function getMonthScopedData(data: BudgetData, referenceDate = new Date())
     savings: data.savings,
     fixedCosts: data.fixedCosts,
     loans: data.loans,
-    expenses: data.expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate))
+    expenses: data.expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate)),
+    sharedWalletTransactions: data.sharedWalletTransactions.filter((row) => isDateInMonthJST(row.occurredOn, referenceDate))
   };
 }
 
@@ -180,15 +181,46 @@ export function getBudgetConsumption(data: BudgetData, referenceDate = new Date(
   };
 }
 
+export function isSharedWalletExpense(expense: Expense) {
+  return expense.paidByType === "shared_wallet" || expense.payer === "共通財布";
+}
+
 export function getMonthlyPayerBreakdown(data: BudgetData, referenceDate = new Date()) {
   const scoped = getMonthScopedData(data, referenceDate);
   const memberRows = data.members.map((member) => ({
     id: member.id,
     label: member.name,
-    amount: sumBy(scoped.expenses.filter((expense) => expense.paidByType !== "shared_wallet" && expense.payer === member.name), (expense) => expense.amount)
+    amount: sumBy(scoped.expenses.filter((expense) => !isSharedWalletExpense(expense) && expense.payer === member.name), (expense) => expense.amount)
   }));
-  const sharedWalletAmount = sumBy(scoped.expenses.filter((expense) => expense.paidByType === "shared_wallet" || expense.payer === "共通財布"), (expense) => expense.amount);
+  const sharedWalletAmount = sumBy(scoped.expenses.filter(isSharedWalletExpense), (expense) => expense.amount);
   return [...memberRows, { id: "shared_wallet", label: "共通財布", amount: sharedWalletAmount }];
+}
+
+export function getSharedWalletBalance(data: BudgetData) {
+  const transactionTotal = sumBy(data.sharedWalletTransactions, (row) => {
+    if (row.type === "withdrawal") return -row.amount;
+    return row.amount;
+  });
+  const expenseTotal = sumBy(data.expenses.filter(isSharedWalletExpense), (expense) => expense.amount);
+  return transactionTotal - expenseTotal;
+}
+
+export function getMonthlySharedWalletUsage(data: BudgetData, referenceDate = new Date()) {
+  return sumBy(getMonthScopedData(data, referenceDate).expenses.filter(isSharedWalletExpense), (expense) => expense.amount);
+}
+
+export function getSharedWalletMonthlyTrend(data: BudgetData, referenceDate = new Date()) {
+  const currentPeriod = getMonthBudgetPeriod(referenceDate);
+  const keys = Array.from({ length: 6 }, (_, index) => shiftMonthKey(currentPeriod.monthKey, index - 5));
+  return keys.map((monthKey) => {
+    const monthDate = getReferenceDateFromMonthKey(monthKey);
+    return {
+      month: monthKey.slice(5),
+      deposits: sumBy(getMonthScopedData(data, monthDate).sharedWalletTransactions.filter((row) => row.type !== "withdrawal"), (row) => row.amount),
+      withdrawals: sumBy(getMonthScopedData(data, monthDate).sharedWalletTransactions.filter((row) => row.type === "withdrawal"), (row) => row.amount),
+      spending: getMonthlySharedWalletUsage(data, monthDate)
+    };
+  });
 }
 
 export function createCurrentMonthlySummary(data: BudgetData, referenceDate = new Date()): MonthlySummary {
@@ -358,7 +390,7 @@ export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.
 }
 
 export function calculateSharedBurden(expense: Expense, data: BudgetData) {
-  if (expense.paidByType === "shared_wallet" && expense.target === "shared") {
+  if (isSharedWalletExpense(expense) && expense.target === "shared") {
     return Object.fromEntries(data.members.map((member) => [member.id, 0]));
   }
 

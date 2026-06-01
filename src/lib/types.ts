@@ -17,6 +17,16 @@ export type ExpenseTarget = "shared" | "self_only" | "partner_only";
 export type PaidByType = "member" | "shared_wallet";
 export type BurdenRule = "fifty_fifty" | "custom" | "income_ratio";
 export type CompareTarget = "last_month" | "two_months_ago" | "three_month_average" | "six_months_ago" | "same_month_last_year";
+export type SharedWalletTransactionType = "deposit" | "withdrawal" | "adjustment";
+
+export type HomeWidgetSettings = {
+  monthEnd: boolean;
+  payerBreakdown: boolean;
+  categoryBudget: boolean;
+  sharedWallet: boolean;
+  incomeSchedule: boolean;
+  burdenRatio: boolean;
+};
 
 export type HouseholdMember = {
   id: string;
@@ -33,6 +43,7 @@ export type HouseholdSettings = {
   saveReceiptImages?: boolean;
   burdenRule: BurdenRule;
   customShares: Record<string, number>;
+  homeWidgets: HomeWidgetSettings;
 };
 
 export type Income = {
@@ -93,6 +104,15 @@ export type Expense = {
   receiptConfidence?: number;
 };
 
+export type SharedWalletTransaction = {
+  id: string;
+  type: SharedWalletTransactionType;
+  amount: number;
+  occurredOn: string;
+  memo: string;
+  memberId?: string;
+};
+
 export type MonthlySummary = {
   id: string;
   month: string;
@@ -127,6 +147,7 @@ export type BudgetData = {
   fixedCosts: FixedCost[];
   loans: Loan[];
   expenses: Expense[];
+  sharedWalletTransactions: SharedWalletTransaction[];
   monthlySummaries: MonthlySummary[];
   notificationRules: NotificationRule[];
 };

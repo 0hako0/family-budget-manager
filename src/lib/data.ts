@@ -1,6 +1,23 @@
 import { cache } from "react";
 import { createServerSupabaseClient } from "./supabase/server";
-import type { BudgetData, BurdenRule, CategoryKind, ExpenseTarget, HouseholdMember } from "./types";
+import type {
+  BudgetData,
+  BurdenRule,
+  CategoryKind,
+  ExpenseTarget,
+  HomeWidgetSettings,
+  HouseholdMember,
+  SharedWalletTransactionType
+} from "./types";
+
+export const defaultHomeWidgets: HomeWidgetSettings = {
+  monthEnd: true,
+  payerBreakdown: true,
+  categoryBudget: true,
+  sharedWallet: true,
+  incomeSchedule: true,
+  burdenRatio: false
+};
 
 const defaultSettings = {
   groupName: "未設定",
@@ -8,7 +25,8 @@ const defaultSettings = {
   iconUrl: undefined,
   saveReceiptImages: false,
   burdenRule: "fifty_fifty" as BurdenRule,
-  customShares: {}
+  customShares: {},
+  homeWidgets: defaultHomeWidgets
 };
 
 export const emptyBudgetData: BudgetData = {
@@ -20,6 +38,7 @@ export const emptyBudgetData: BudgetData = {
   fixedCosts: [],
   loans: [],
   expenses: [],
+  sharedWalletTransactions: [],
   monthlySummaries: [],
   notificationRules: []
 };
@@ -52,6 +71,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     fixedCostsResult,
     loansResult,
     expensesResult,
+    walletResult,
     summariesResult
   ] = await Promise.all([
     supabase.from("household_groups").select("*").eq("id", groupId).maybeSingle(),
@@ -62,6 +82,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     supabase.from("fixed_costs").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
     supabase.from("loans").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
     supabase.from("expenses").select("*").eq("household_group_id", groupId).order("spent_on", { ascending: false }),
+    supabase.from("shared_wallet_transactions").select("*").eq("household_group_id", groupId).order("occurred_on", { ascending: false }),
     supabase.from("monthly_summaries").select("*").eq("household_group_id", groupId).order("target_month", { ascending: false })
   ]);
 
@@ -84,7 +105,8 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       iconUrl: groupResult.data?.icon_url ? String(groupResult.data.icon_url) : undefined,
       saveReceiptImages: Boolean(groupResult.data?.save_receipt_images),
       burdenRule: mapBurdenRule(String(groupResult.data?.burden_rule ?? "fifty_fifty")),
-      customShares: Object.fromEntries(members.map((member) => [member.id, member.shareRatio]))
+      customShares: Object.fromEntries(members.map((member) => [member.id, member.shareRatio])),
+      homeWidgets: mapHomeWidgets(groupResult.data?.home_widgets)
     },
     categories: (categoriesResult.data ?? []).map((category: Record<string, unknown>) => ({
       id: String(category.id),
@@ -151,6 +173,14 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       receiptOcrText: expense.receipt_ocr_text ? String(expense.receipt_ocr_text) : undefined,
       receiptConfidence: expense.receipt_confidence == null ? undefined : Number(expense.receipt_confidence)
     })),
+    sharedWalletTransactions: (walletResult.data ?? []).map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      type: mapSharedWalletTransactionType(String(row.type ?? "deposit")),
+      amount: Number(row.amount ?? 0),
+      occurredOn: String(row.occurred_on ?? ""),
+      memo: String(row.memo ?? ""),
+      memberId: row.member_id ? String(row.member_id) : undefined
+    })),
     monthlySummaries: (summariesResult.data ?? []).map((summary: Record<string, unknown>) => ({
       id: String(summary.id),
       month: String(summary.target_month ?? ""),
@@ -179,4 +209,23 @@ function mapExpenseTarget(value: string): ExpenseTarget {
   if (value === "self_only") return "self_only";
   if (value === "partner_only") return "partner_only";
   return "shared";
+}
+
+function mapSharedWalletTransactionType(value: string): SharedWalletTransactionType {
+  if (value === "withdrawal") return "withdrawal";
+  if (value === "adjustment") return "adjustment";
+  return "deposit";
+}
+
+function mapHomeWidgets(value: unknown): HomeWidgetSettings {
+  if (!value || typeof value !== "object") return defaultHomeWidgets;
+  const record = value as Partial<HomeWidgetSettings>;
+  return {
+    monthEnd: record.monthEnd ?? true,
+    payerBreakdown: record.payerBreakdown ?? true,
+    categoryBudget: record.categoryBudget ?? true,
+    sharedWallet: record.sharedWallet ?? true,
+    incomeSchedule: record.incomeSchedule ?? true,
+    burdenRatio: record.burdenRatio ?? false
+  };
 }
