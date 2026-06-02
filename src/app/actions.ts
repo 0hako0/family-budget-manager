@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createCurrentMonthlySummary } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import { getCurrentMonthPeriodJST, getReferenceDateFromMonthKey, getTodayJSTDateString, shiftMonthKey } from "@/lib/date";
+import { toJapaneseError } from "@/lib/error-messages";
 import { normalizeInviteCode } from "@/lib/invite-code";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { CategoryKind } from "@/lib/types";
@@ -22,20 +23,6 @@ function checked(formData: FormData, key: string) {
   return formData.get(key) === "on";
 }
 
-function authErrorMessage(message: string) {
-  const lower = message.toLowerCase();
-  if (lower.includes("email not confirmed")) return "このアカウントは確認待ち状態です。再登録するか管理者に確認してください。";
-  if (lower.includes("rate limit")) return "メール送信制限に達しました。Supabase Auth の Confirm email を OFF にしているか確認してください。";
-  return message;
-}
-
-function inviteErrorMessage(message: string) {
-  const lower = message.toLowerCase();
-  if (lower.includes("not authenticated")) return "ログイン状態を確認できませんでした。もう一度ログインしてください。";
-  if (lower.includes("invite") || lower.includes("code") || lower.includes("not found") || lower.includes("家計コード")) return "家計コードが見つかりません。コードを確認してください。";
-  return message;
-}
-
 async function requireUser() {
   const supabase = createServerSupabaseClient();
   const {
@@ -45,7 +32,7 @@ async function requireUser() {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!session || !user) redirect(`/login?error=${encodeURIComponent("ログイン状態を確認できませんでした。もう一度ログインしてください。")}`);
+  if (!session || !user) redirect(`/login?error=${encodeURIComponent(toJapaneseError("not authenticated"))}`);
   return { supabase, user };
 }
 
@@ -56,7 +43,7 @@ function revalidateCore() {
 export async function signIn(formData: FormData) {
   const supabase = createServerSupabaseClient();
   const { error } = await supabase.auth.signInWithPassword({ email: value(formData, "email"), password: value(formData, "password") });
-  if (error) redirect(`/login?error=${encodeURIComponent(authErrorMessage(error.message))}`);
+  if (error) redirect(`/login?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   redirect("/");
 }
 
@@ -66,10 +53,10 @@ export async function signUp(formData: FormData) {
   const password = value(formData, "password");
   const displayName = value(formData, "displayName") || email;
   const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName } } });
-  if (error) redirect(`/signup?error=${encodeURIComponent(authErrorMessage(error.message))}`);
+  if (error) redirect(`/signup?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   if (!data.session) {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) redirect(`/signup?error=${encodeURIComponent(authErrorMessage(signInError.message))}`);
+    if (signInError) redirect(`/signup?error=${encodeURIComponent(toJapaneseError(signInError.message))}`);
   }
   redirect("/setup");
 }
@@ -88,14 +75,14 @@ export async function setupHousehold(formData: FormData) {
     burden_rule_value: value(formData, "burdenRule") || "fifty_fifty",
     share_ratio_value: Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100))
   });
-  if (error) redirect(`/setup?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/setup?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   redirect("/");
 }
 
 export async function createInvitation(formData: FormData) {
   const { supabase } = await requireUser();
   const { data, error } = await supabase.from("household_groups").select("invite_code").eq("id", value(formData, "householdGroupId")).maybeSingle();
-  if (error) redirect(`/settings?inviteError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?inviteError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidatePath("/settings");
   redirect(`/settings?invite=${encodeURIComponent(String(data?.invite_code ?? ""))}`);
 }
@@ -107,7 +94,7 @@ export async function joinInvitation(formData: FormData) {
     display_name: value(formData, "displayName") || user.email || "パートナー",
     share_ratio_value: Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100))
   });
-  if (error) redirect(`/setup?joinError=${encodeURIComponent(inviteErrorMessage(error.message))}`);
+  if (error) redirect(`/setup?joinError=${encodeURIComponent(toJapaneseError(error.message))}`);
   redirect("/");
 }
 
@@ -135,7 +122,7 @@ export async function closeCurrentMonth(formData: FormData) {
     },
     { onConflict: "household_group_id,target_month" }
   );
-  if (error) redirect(`/reports?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/reports?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
@@ -190,7 +177,7 @@ export async function updateHouseholdSettings(formData: FormData) {
       }
     })
     .eq("id", householdGroupId);
-  if (error) redirect(`/settings?settingsError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?settingsError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
   redirect("/settings?saved=household");
 }
@@ -208,7 +195,7 @@ export async function updateHouseholdMember(formData: FormData) {
       role: value(formData, "role") === "owner" ? "owner" : "member"
     })
     .eq("id", id);
-  if (error) redirect(`/settings?memberError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?memberError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
   redirect("/settings?saved=member");
 }
@@ -231,7 +218,7 @@ export async function saveCommonPaymentMethod(formData: FormData) {
   const { error } = id
     ? await supabase.from("common_payment_methods").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
     : await supabase.from("common_payment_methods").insert(payload);
-  if (error) redirect(`/settings?settingsError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?settingsError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
   redirect("/settings?saved=household");
 }
@@ -259,7 +246,7 @@ export async function saveSavingGoal(formData: FormData) {
     ? await supabase.from("saving_goals").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
     : await supabase.from("saving_goals").insert(payload);
 
-  if (error) redirect(`/settings?settingsError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?settingsError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
   redirect("/settings?saved=household");
 }
@@ -277,7 +264,7 @@ export async function createSharedWalletTransaction(formData: FormData) {
     occurred_on: value(formData, "occurredOn") || getTodayJSTDateString(),
     memo: value(formData, "memo")
   });
-  if (error) redirect(`/?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
@@ -313,7 +300,7 @@ export async function createExpense(formData: FormData) {
   const { error } = id
     ? await supabase.from("expenses").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
     : await supabase.from("expenses").insert(payload);
-  if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/expenses?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
@@ -336,7 +323,7 @@ export async function createIncome(formData: FormData) {
     recurring: value(formData, "recurring") !== "false"
   };
   const { error } = id ? await supabase.from("incomes").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("incomes").insert(payload);
-  if (error) redirect(`/incomes?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/incomes?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
@@ -349,7 +336,7 @@ export async function createSaving(formData: FormData) {
   if (!householdGroupId || !name || !amount) redirect("/savings?error=名称と金額を入力してください");
   const payload = { household_group_id: householdGroupId, name, amount, saving_type: "other", category_id: value(formData, "categoryId") || null, recurring: value(formData, "recurring") !== "false" };
   const { error } = id ? await supabase.from("savings").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("savings").insert(payload);
-  if (error) redirect(`/savings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/savings?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
@@ -374,7 +361,7 @@ export async function createFixedCost(formData: FormData) {
     review_memo: value(formData, "reviewMemo")
   };
   const { error } = id ? await supabase.from("fixed_costs").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("fixed_costs").insert(payload);
-  if (error) redirect(`/fixed-costs?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/fixed-costs?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
@@ -397,7 +384,7 @@ export async function createLoan(formData: FormData) {
     memo: value(formData, "memo")
   };
   const { error } = id ? await supabase.from("loans").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("loans").insert(payload);
-  if (error) redirect(`/loans?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/loans?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
@@ -418,48 +405,48 @@ export async function saveCategory(formData: FormData) {
   };
   if (!payload.name || !householdGroupId) redirect("/settings?categoryError=カテゴリ名を入力してください");
   const { error } = id ? await supabase.from("categories").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("categories").insert(payload);
-  if (error) redirect(`/settings?categoryError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?categoryError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function archiveCategory(formData: FormData) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("categories").update({ archived: true }).eq("id", value(formData, "id"));
-  if (error) redirect(`/settings?categoryError=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/settings?categoryError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteExpense(formData: FormData) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("expenses").delete().eq("id", value(formData, "id"));
-  if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/expenses?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteIncome(formData: FormData) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("incomes").delete().eq("id", value(formData, "id"));
-  if (error) redirect(`/incomes?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/incomes?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteSaving(formData: FormData) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("savings").delete().eq("id", value(formData, "id"));
-  if (error) redirect(`/savings?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/savings?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteFixedCost(formData: FormData) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("fixed_costs").delete().eq("id", value(formData, "id"));
-  if (error) redirect(`/fixed-costs?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/fixed-costs?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteLoan(formData: FormData) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("loans").delete().eq("id", value(formData, "id"));
-  if (error) redirect(`/loans?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/loans?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }

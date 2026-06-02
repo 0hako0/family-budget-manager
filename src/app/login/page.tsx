@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signIn } from "@/app/actions";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 
 export default async function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
   return (
@@ -13,9 +14,7 @@ export default async function LoginPage({ searchParams }: { searchParams?: { err
         <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="email" type="email" placeholder="メールアドレス" required />
         <input className="min-h-14 rounded-2xl border border-emerald-900/10 bg-cream/70 px-4 text-base outline-none focus:border-leaf" name="password" type="password" placeholder="パスワード" required />
         {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
-        <button className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white transition active:scale-[0.98]" type="submit">
-          ログイン
-        </button>
+        <FormSubmitButton idleLabel="ログイン" pendingLabel="ログイン中..." className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white transition active:scale-[0.98] disabled:bg-ink/20" />
       </form>
       <Link className="text-center text-sm font-bold text-leaf" href="/signup">
         新規登録はこちら

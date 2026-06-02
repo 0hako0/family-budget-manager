@@ -11,7 +11,12 @@ type Item = {
 
 export function CategoryBudgetList({ items, compact = false }: { items: Item[]; compact?: boolean }) {
   if (items.length === 0) {
-    return <div className="rounded-lg bg-cream/60 p-4 text-sm font-bold text-ink/60">カテゴリ予算がまだ登録されていません</div>;
+    return (
+      <div className="rounded-lg bg-cream/60 p-4 text-sm font-bold text-ink/60">
+        <p>カテゴリ予算がまだ登録されていません</p>
+        <p className="mt-1 text-xs">設定のカテゴリ編集から、食費や外食などの月予算を追加できます。</p>
+      </div>
+    );
   }
 
   return (

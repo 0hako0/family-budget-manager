@@ -275,7 +275,14 @@ function PayerSelect({ data, name, defaultValue, includeSharedWallet = true }: {
 function ItemList({ empty, children }: { empty: string; children: React.ReactNode }) {
   return (
     <section className="rounded-[22px] bg-white p-4 shadow-sm">
-      {React.Children.count(children) === 0 ? <p className="text-sm font-bold text-ink/60">{empty}</p> : <div className="grid gap-3">{children}</div>}
+      {React.Children.count(children) === 0 ? (
+        <div className="rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">
+          <p>{empty}</p>
+          <p className="mt-1 text-xs">上の登録フォームを開いて、家計の固定項目を追加してください。</p>
+        </div>
+      ) : (
+        <div className="grid gap-3">{children}</div>
+      )}
     </section>
   );
 }
