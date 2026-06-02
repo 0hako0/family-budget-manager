@@ -19,6 +19,7 @@ export type PaymentMethodType = "personal" | "shared_wallet" | "shared_credit_ca
 export type BurdenRule = "fifty_fifty" | "custom" | "income_ratio";
 export type CompareTarget = "last_month" | "two_months_ago" | "three_month_average" | "six_months_ago" | "same_month_last_year";
 export type SharedWalletTransactionType = "deposit" | "withdrawal" | "adjustment";
+export type ReceiptRetentionPolicy = "none" | "30_days" | "90_days" | "forever";
 
 export type HomeWidgetSettings = {
   monthEnd: boolean;
@@ -42,6 +43,8 @@ export type HouseholdSettings = {
   inviteCode?: string;
   iconUrl?: string;
   saveReceiptImages?: boolean;
+  receiptRetentionPolicy: ReceiptRetentionPolicy;
+  improvementNotes: string;
   burdenRule: BurdenRule;
   customShares: Record<string, number>;
   homeWidgets: HomeWidgetSettings;
@@ -105,6 +108,8 @@ export type Expense = {
   receiptImageUrl?: string;
   receiptOcrText?: string;
   receiptConfidence?: number;
+  receiptExpiresAt?: string;
+  receiptCompressedSize?: number;
 };
 
 export type CommonPaymentMethod = {

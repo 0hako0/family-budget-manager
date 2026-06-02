@@ -78,6 +78,24 @@ export default async function SettingsPage({
             <input name="saveReceiptImages" type="checkbox" defaultChecked={data.settings.saveReceiptImages} />
             レシート画像を保存する
           </label>
+          <label className="grid gap-1 text-sm font-bold text-ink/65">
+            レシート画像の保存期間
+            <select className={inputClass} name="receiptRetentionPolicy" defaultValue={data.settings.receiptRetentionPolicy}>
+              <option value="none">保存しない</option>
+              <option value="30_days">30日保存</option>
+              <option value="90_days">90日保存</option>
+              <option value="forever">永久保存</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-bold text-ink/65">
+            改善要望メモ
+            <textarea
+              className={`${inputClass} min-h-28 resize-none`}
+              name="improvementNotes"
+              defaultValue={data.settings.improvementNotes}
+              placeholder="使っていて気づいた改善点を残せます"
+            />
+          </label>
           <div className="rounded-2xl bg-cream/60 p-3">
             <p className="text-sm font-black text-ink">ホーム表示</p>
             <div className="mt-2 grid grid-cols-2 gap-2">

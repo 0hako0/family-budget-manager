@@ -8,6 +8,7 @@ import type {
   HomeWidgetSettings,
   HouseholdMember,
   PaymentMethodType,
+  ReceiptRetentionPolicy,
   SharedWalletTransactionType
 } from "./types";
 
@@ -25,6 +26,8 @@ const defaultSettings = {
   inviteCode: undefined,
   iconUrl: undefined,
   saveReceiptImages: false,
+  receiptRetentionPolicy: "none" as ReceiptRetentionPolicy,
+  improvementNotes: "",
   burdenRule: "fifty_fifty" as BurdenRule,
   customShares: {},
   homeWidgets: defaultHomeWidgets
@@ -111,6 +114,8 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       inviteCode: groupResult.data?.invite_code ? String(groupResult.data.invite_code) : undefined,
       iconUrl: groupResult.data?.icon_url ? String(groupResult.data.icon_url) : undefined,
       saveReceiptImages: Boolean(groupResult.data?.save_receipt_images),
+      receiptRetentionPolicy: mapReceiptRetentionPolicy(String(groupResult.data?.receipt_retention_policy ?? "none")),
+      improvementNotes: String(groupResult.data?.improvement_notes ?? ""),
       burdenRule: mapBurdenRule(String(groupResult.data?.burden_rule ?? "fifty_fifty")),
       customShares: Object.fromEntries(members.map((member) => [member.id, member.shareRatio])),
       homeWidgets: mapHomeWidgets(groupResult.data?.home_widgets)
@@ -180,7 +185,9 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       memo: String(expense.memo ?? ""),
       receiptImageUrl: expense.receipt_image_url ? String(expense.receipt_image_url) : undefined,
       receiptOcrText: expense.receipt_ocr_text ? String(expense.receipt_ocr_text) : undefined,
-      receiptConfidence: expense.receipt_confidence == null ? undefined : Number(expense.receipt_confidence)
+      receiptConfidence: expense.receipt_confidence == null ? undefined : Number(expense.receipt_confidence),
+      receiptExpiresAt: expense.receipt_expires_at ? String(expense.receipt_expires_at) : undefined,
+      receiptCompressedSize: expense.receipt_compressed_size == null ? undefined : Number(expense.receipt_compressed_size)
     })),
     commonPaymentMethods: (paymentMethodsResult.data ?? []).map((row: Record<string, unknown>) => ({
       id: String(row.id),
@@ -249,6 +256,13 @@ function mapPaymentMethodType(value: string): PaymentMethodType {
   if (value === "shared_credit_card") return "shared_credit_card";
   if (value === "household_account") return "household_account";
   return "personal";
+}
+
+function mapReceiptRetentionPolicy(value: string): ReceiptRetentionPolicy {
+  if (value === "30_days") return "30_days";
+  if (value === "90_days") return "90_days";
+  if (value === "forever") return "forever";
+  return "none";
 }
 
 function mapHomeWidgets(value: unknown): HomeWidgetSettings {

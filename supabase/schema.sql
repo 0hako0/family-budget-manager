@@ -22,6 +22,8 @@ create table if not exists public.household_groups (
   invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
   icon_url text,
   save_receipt_images boolean not null default false,
+  receipt_retention_policy text not null default 'none' check (receipt_retention_policy in ('none', '30_days', '90_days', 'forever')),
+  improvement_notes text not null default '',
   home_widgets jsonb not null default '{
     "monthEnd": true,
     "payerBreakdown": true,
@@ -40,6 +42,8 @@ alter table public.household_groups add column if not exists created_by uuid ref
 alter table public.household_groups add column if not exists invite_code text unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 alter table public.household_groups add column if not exists icon_url text;
 alter table public.household_groups add column if not exists save_receipt_images boolean not null default false;
+alter table public.household_groups add column if not exists receipt_retention_policy text not null default 'none' check (receipt_retention_policy in ('none', '30_days', '90_days', 'forever'));
+alter table public.household_groups add column if not exists improvement_notes text not null default '';
 alter table public.household_groups add column if not exists home_widgets jsonb not null default '{
   "monthEnd": true,
   "payerBreakdown": true,
@@ -280,6 +284,8 @@ create table if not exists public.expenses (
   receipt_image_url text,
   receipt_ocr_text text,
   receipt_confidence numeric,
+  receipt_expires_at timestamptz,
+  receipt_compressed_size integer check (receipt_compressed_size is null or receipt_compressed_size >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -299,8 +305,34 @@ create table if not exists public.common_payment_methods (
 
 alter table public.expenses add column if not exists payment_method_type text not null default 'personal' check (payment_method_type in ('personal', 'shared_wallet', 'shared_credit_card', 'household_account'));
 alter table public.expenses add column if not exists payment_method_id uuid references public.common_payment_methods(id) on delete set null;
+alter table public.expenses add column if not exists receipt_expires_at timestamptz;
+alter table public.expenses add column if not exists receipt_compressed_size integer check (receipt_compressed_size is null or receipt_compressed_size >= 0);
 alter table public.expenses drop constraint if exists expenses_payment_method_id_fkey;
 alter table public.expenses add constraint expenses_payment_method_id_fkey foreign key (payment_method_id) references public.common_payment_methods(id) on delete set null;
+
+create or replace function public.cleanup_expired_receipt_refs()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  affected_count integer;
+begin
+  update public.expenses
+  set
+    receipt_image_url = null,
+    receipt_ocr_text = null,
+    receipt_confidence = null,
+    receipt_expires_at = null,
+    receipt_compressed_size = null
+  where receipt_expires_at is not null
+    and receipt_expires_at < now();
+
+  get diagnostics affected_count = row_count;
+  return affected_count;
+end;
+$$;
 
 create table if not exists public.monthly_summaries (
   id uuid primary key default gen_random_uuid(),
@@ -619,6 +651,24 @@ create index if not exists idx_common_payment_methods_household_group_id on publ
 create index if not exists idx_monthly_summaries_household_group_id on public.monthly_summaries(household_group_id);
 create index if not exists idx_shared_wallet_transactions_household_group_id on public.shared_wallet_transactions(household_group_id, occurred_on);
 create index if not exists idx_saving_goals_household_group_id on public.saving_goals(household_group_id, archived);
+
+do $$
+declare
+  table_name text;
+begin
+  foreach table_name in array array['expenses', 'incomes', 'fixed_costs', 'loans', 'savings', 'shared_wallet_transactions', 'saving_goals']
+  loop
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = table_name
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', table_name);
+    end if;
+  end loop;
+end $$;
 
 drop trigger if exists set_users_updated_at on public.users;
 create trigger set_users_updated_at before update on public.users for each row execute function public.set_updated_at();

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createSharedWalletTransaction } from "@/app/actions";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { IntroTutorial } from "@/components/IntroTutorial";
+import { LastUpdated } from "@/components/LastUpdated";
 import { MetricCard } from "@/components/MetricCard";
 import { MonthlySnapshotRunner } from "@/components/MonthlySnapshotRunner";
 import {
@@ -48,10 +50,14 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   return (
     <div className="grid gap-5">
       <MonthlySnapshotRunner enabled={Boolean(data.householdGroupId)} />
+      <IntroTutorial />
       {searchParams?.error ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.error}</p> : null}
 
       <section className="rounded-[22px] border border-leaf/20 bg-white p-5 shadow-soft">
-        <p className="text-xs font-bold text-leaf">{period.monthLabel}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold text-leaf">{period.monthLabel}</p>
+          <LastUpdated />
+        </div>
         <p className="mt-1 text-[11px] font-bold text-ink/45">期間: {period.startLabel}〜{period.endLabel}</p>
         <p className="mt-3 text-sm font-bold text-ink/60">今月あと使える金額</p>
         <p className="mt-2 text-5xl font-black tracking-normal text-ink">{yen(totals.remainingBudget)}</p>
@@ -93,8 +99,8 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
       </section>
 
       {widgets.sharedWallet ? (
-        <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-black text-ink">共通支払い方法</h2>
+        <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">共通支払い方法</summary>
           <div className="mt-3 grid gap-3">
             <div className="rounded-2xl bg-cream/60 p-3">
               <div className="flex items-center justify-between">
@@ -124,11 +130,11 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
               <FormSubmitButton idleLabel="入金を登録" pendingLabel="登録中..." />
             </form>
           </details>
-        </section>
+        </details>
       ) : null}
 
-      <section className="rounded-[22px] bg-white p-4 shadow-sm">
-        <h2 className="text-base font-black text-ink">今後の支払予定</h2>
+      <details className="rounded-[22px] bg-white p-4 shadow-sm">
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">今後の支払予定</summary>
         {upcomingPayments.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">直近の予定はありません</p> : null}
         <div className="mt-3 grid gap-2">
           {upcomingPayments.map((item) => (
@@ -141,11 +147,11 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
             </div>
           ))}
         </div>
-      </section>
+      </details>
 
       {creditCardBills.length > 0 ? (
-        <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-black text-ink">クレカ請求管理</h2>
+        <details className="rounded-[22px] bg-white p-4 shadow-sm">
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">クレカ請求管理</summary>
           <div className="mt-3 grid gap-3">
             {creditCardBills.map((bill) => (
               <div key={bill.card.id} className="rounded-2xl bg-cream/60 p-3">
@@ -166,11 +172,11 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
               </div>
             ))}
           </div>
-        </section>
+        </details>
       ) : null}
 
-      <section className="rounded-[22px] bg-white p-4 shadow-sm">
-        <h2 className="text-base font-black text-ink">貯金目標</h2>
+      <details className="rounded-[22px] bg-white p-4 shadow-sm">
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">貯金目標</summary>
         {data.savingGoals.filter((goal) => !goal.archived).length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだ貯金目標がありません。設定から追加できます。</p> : null}
         <div className="mt-3 grid gap-3">
           {data.savingGoals.filter((goal) => !goal.archived).slice(0, 3).map((goal) => {
@@ -189,7 +195,7 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
             );
           })}
         </div>
-      </section>
+      </details>
 
       {subscriptionCandidates.length > 0 ? (
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
@@ -210,18 +216,18 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
       ) : null}
 
       {widgets.categoryBudget ? (
-        <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-black text-ink">カテゴリ予算</h2>
+        <details className="rounded-[22px] bg-white p-4 shadow-sm">
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">カテゴリ予算</summary>
+          <div className="mb-3 flex items-center justify-end">
             <Link href="/reports" prefetch className="text-sm font-bold text-leaf">レポートへ</Link>
           </div>
           <CategoryBudgetList items={budgetUsage} compact />
-        </section>
+        </details>
       ) : null}
 
       {widgets.payerBreakdown && data.members.length > 0 ? (
-        <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-black text-ink">今月の支払内訳</h2>
+        <details className="rounded-[22px] bg-white p-4 shadow-sm">
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">今月の支払内訳</summary>
           <div className="mt-3 grid gap-2">
             {payerBreakdown.map((row) => (
               <div key={row.id} className="flex items-center justify-between rounded-2xl bg-cream/60 px-3 py-3 text-sm">
@@ -243,7 +249,7 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
               </div>
             </details>
           ) : null}
-        </section>
+        </details>
       ) : null}
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">

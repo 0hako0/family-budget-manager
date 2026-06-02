@@ -26,6 +26,9 @@ const fixedTabs = read("src/components/FixedItemsTabs.tsx");
 const exportTools = read("src/components/DataExportTools.tsx");
 const setupPage = read("src/app/setup/page.tsx");
 const formButton = read("src/components/FormSubmitButton.tsx");
+const realtime = read("src/components/RealtimeRefresh.tsx");
+const home = read("src/app/(mobile)/page.tsx");
+const settings = read("src/app/(mobile)/settings/page.tsx");
 
 [
   ["新規登録", "signUp"],
@@ -64,6 +67,16 @@ check("空データの次アクション表示", fixedTabs.includes("登録フ�
 check("支出カテゴリ未選択を防止", expenseEntry.includes("カテゴリを選択してください") && expenseEntry.includes("event.preventDefault()"));
 check("金額入力は数字キーボード", expenseEntry.includes('inputMode="numeric"') || expenseEntry.includes("inputMode=\"numeric\""));
 check("iPhone向け固定ボタン", expenseEntry.includes("safe-area-inset-bottom") || expenseEntry.includes("bottom-[calc(72px+env(safe-area-inset-bottom))]"));
+check("Realtimeはhousehold単位で購読", realtime.includes("household_group_id=eq.") && realtime.includes("shared_wallet_transactions") && realtime.includes("saving_goals"));
+check("Realtimeはdebounce更新", realtime.includes("setTimeout") && realtime.includes("700"));
+check("手動更新ボタン", includes("src/components/ManualRefreshButton.tsx", "↻ 更新"));
+check("Pull To Refresh", includes("src/components/PullToRefresh.tsx", "離して更新"));
+check("最終更新時刻", home.includes("LastUpdated"));
+check("支出入力の前回値記憶", expenseEntry.includes("family-budget:expense-quick-entry"));
+check("OCR画像圧縮", includes("src/lib/receipt-image.ts", "image/jpeg") && includes("src/lib/receipt-image.ts", "1280"));
+check("レシート保存期間設定", settings.includes("receiptRetentionPolicy") && schema.includes("receipt_retention_policy"));
+check("改善要望メモ", settings.includes("improvementNotes") && schema.includes("improvement_notes"));
+check("Realtime publication SQL", includes("supabase/migrations/014_realtime_publication.sql", "supabase_realtime"));
 
 const failed = checks.filter((item) => !item.passed);
 

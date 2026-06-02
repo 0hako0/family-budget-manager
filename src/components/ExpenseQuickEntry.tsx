@@ -1,13 +1,14 @@
 "use client";
 
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createExpense, deleteExpense } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePaymentMethodType, getMonthScopedData, getPaymentMethodLabel } from "@/lib/budget";
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
+import { compressReceiptImage } from "@/lib/receipt-image";
 import type { BudgetData, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
@@ -18,6 +19,7 @@ const targetLabels: Record<ExpenseTarget, string> = {
   self_only: "自分のみ",
   partner_only: "パートナーのみ"
 };
+const quickEntryStorageKey = "family-budget:expense-quick-entry";
 
 function DeleteExpenseButton() {
   const { pending } = useFormStatus();
@@ -104,11 +106,42 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [receiptPreview, setReceiptPreview] = useState("");
   const [ocrMessage, setOcrMessage] = useState("");
+  const [isCompressingReceipt, setIsCompressingReceipt] = useState(false);
+  const [compressedReceiptSize, setCompressedReceiptSize] = useState<number | null>(null);
 
   const currentMonthExpenses = useMemo(() => getMonthScopedData(data).expenses, [data]);
   const recentExpenses = useMemo(() => currentMonthExpenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3), [currentMonthExpenses]);
   const total = useMemo(() => currentMonthExpenses.reduce((sum, expense) => sum + expense.amount, 0), [currentMonthExpenses]);
   const displayError = error || errorMessage;
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(quickEntryStorageKey) ?? "{}") as Partial<{
+        categoryId: string;
+        payer: string;
+        paymentMethodValue: string;
+        target: ExpenseTarget;
+      }>;
+      if (saved.categoryId && categories.some((category) => category.id === saved.categoryId)) setCategoryId(saved.categoryId);
+      if (saved.payer) setPayer(saved.payer);
+      if (saved.paymentMethodValue) setPaymentMethodValue(saved.paymentMethodValue);
+      if (saved.target) setTarget(saved.target);
+    } catch {
+      window.localStorage.removeItem(quickEntryStorageKey);
+    }
+  }, [categories]);
+
+  function rememberQuickEntryDefaults() {
+    window.localStorage.setItem(
+      quickEntryStorageKey,
+      JSON.stringify({
+        categoryId,
+        payer,
+        paymentMethodValue,
+        target
+      })
+    );
+  }
 
   function validateForm() {
     if (!categoryId) {
@@ -128,6 +161,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
       <form
         id="expense-entry-form"
         action={async (formData) => {
+          rememberQuickEntryDefaults();
           await createExpense(formData);
           setAmount("");
           setLocation("");
@@ -210,16 +244,31 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         <details className="mt-3 rounded-2xl bg-cream/55 p-3">
           <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシートを撮影・読み取る</summary>
           <div className="grid gap-3 pt-2">
-            <input className="mobile-input" type="file" accept="image/*" capture="environment" onChange={(event) => {
+            <input className="mobile-input" type="file" accept="image/*" capture="environment" onChange={async (event) => {
               const file = event.target.files?.[0];
-              setReceiptPreview(file ? URL.createObjectURL(file) : "");
+              if (receiptPreview) URL.revokeObjectURL(receiptPreview);
+              setReceiptPreview("");
+              setCompressedReceiptSize(null);
               setOcrMessage("");
+              if (!file) return;
+              setIsCompressingReceipt(true);
+              try {
+                const compressed = await compressReceiptImage(file);
+                setReceiptPreview(compressed.previewUrl);
+                setCompressedReceiptSize(compressed.size);
+                setOcrMessage(`画像を圧縮しました。${compressed.width}x${compressed.height} / 約${Math.round(compressed.size / 1024)}KB`);
+              } catch {
+                setOcrMessage("画像の圧縮に失敗しました。別の写真でお試しください。");
+              } finally {
+                setIsCompressingReceipt(false);
+              }
             }} />
             {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for an unsaved local receipt image */}
             {receiptPreview ? <img src={receiptPreview} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
-            <button className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 py-3 text-sm font-black text-leaf transition active:scale-[0.98]" type="button" onClick={() => setOcrMessage("OCRは次フェーズの確認画面付き実装として残しています。読み取り結果は必ず確認してから登録する設計です。")}>
+            <button className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 py-3 text-sm font-black text-leaf transition active:scale-[0.98] disabled:opacity-50" type="button" disabled={isCompressingReceipt} onClick={() => setOcrMessage("OCRは次フェーズの確認画面付き実装として残しています。読み取り結果は必ず確認してから登録する設計です。")}>
               写真から読み取る
             </button>
+            {compressedReceiptSize ? <p className="text-xs font-bold text-ink/50">保存・OCRに使う場合は圧縮後画像を利用します。</p> : null}
             {ocrMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-ink/70">{ocrMessage}</p> : null}
           </div>
         </details>

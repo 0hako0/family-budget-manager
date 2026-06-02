@@ -167,6 +167,10 @@ export async function updateHouseholdSettings(formData: FormData) {
       icon_url: value(formData, "iconUrl") || null,
       burden_rule: ["fifty_fifty", "custom", "income_ratio"].includes(burdenRule) ? burdenRule : "fifty_fifty",
       save_receipt_images: checked(formData, "saveReceiptImages"),
+      receipt_retention_policy: ["none", "30_days", "90_days", "forever"].includes(value(formData, "receiptRetentionPolicy"))
+        ? value(formData, "receiptRetentionPolicy")
+        : "none",
+      improvement_notes: value(formData, "improvementNotes"),
       home_widgets: {
         monthEnd: checked(formData, "widgetMonthEnd"),
         payerBreakdown: checked(formData, "widgetPayerBreakdown"),
