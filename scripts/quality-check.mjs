@@ -77,6 +77,11 @@ check("OCR画像圧縮", includes("src/lib/receipt-image.ts", "image/jpeg") && i
 check("レシート保存期間設定", settings.includes("receiptRetentionPolicy") && schema.includes("receipt_retention_policy"));
 check("改善要望メモ", settings.includes("improvementNotes") && schema.includes("improvement_notes"));
 check("Realtime publication SQL", includes("supabase/migrations/014_realtime_publication.sql", "supabase_realtime"));
+check("共通クレカ固定選択肢を出さない", !expenseEntry.includes('<option value="shared_credit_card:">共通クレジットカード</option>'));
+check("ホームから詳細画面へ導線", home.includes('href="/payments"') && home.includes('href="/goals"') && home.includes('href="/schedule"'));
+check("支払い詳細画面", includes("src/app/(mobile)/payments/page.tsx", "クレカ請求管理"));
+check("貯金目標詳細画面", includes("src/app/(mobile)/goals/page.tsx", "貯金目標"));
+check("支払予定詳細画面", includes("src/app/(mobile)/schedule/page.tsx", "サブスク候補"));
 
 const failed = checks.filter((item) => !item.passed);
 

@@ -348,20 +348,24 @@ function PayerSelect({ data, value, onChange }: { data: BudgetData; value: strin
 
 function PaymentMethodFields({ data, value, onChange }: { data: BudgetData; value: string; onChange: (value: string) => void }) {
   const [type, methodId = ""] = value.split(":") as [PaymentMethodType, string?];
+  const creditCards = data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card" && !method.archived);
+  const hasSelectedCard = type === "shared_credit_card" && creditCards.some((method) => method.id === methodId);
+  const normalizedValue = type === "shared_credit_card" && !hasSelectedCard ? "personal:" : value;
+  const [normalizedType, normalizedMethodId = ""] = normalizedValue.split(":") as [PaymentMethodType, string?];
   return (
     <Field label="支払い方法">
-      <select className="mobile-input" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select className="mobile-input" value={normalizedValue} onChange={(event) => onChange(event.target.value)}>
         <option value="personal:">個人支払い</option>
         <option value="shared_wallet:">共通財布</option>
         <option value="household_account:">家計口座</option>
-        {data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card" && !method.archived).map((method) => (
+        {creditCards.map((method) => (
           <option key={method.id} value={`shared_credit_card:${method.id}`}>{method.name}</option>
         ))}
-        <option value="shared_credit_card:">共通クレジットカード</option>
+        {creditCards.length === 0 ? <option value="personal:" disabled>共通クレジットカードを設定してください</option> : null}
       </select>
-      <input type="hidden" name="paymentMethodType" value={type || "personal"} />
-      <input type="hidden" name="paymentMethodId" value={methodId ?? ""} />
-      <input type="hidden" name="paidByType" value={type === "shared_wallet" ? "shared_wallet" : "member"} />
+      <input type="hidden" name="paymentMethodType" value={normalizedType || "personal"} />
+      <input type="hidden" name="paymentMethodId" value={normalizedMethodId ?? ""} />
+      <input type="hidden" name="paidByType" value={normalizedType === "shared_wallet" ? "shared_wallet" : "member"} />
     </Field>
   );
 }
