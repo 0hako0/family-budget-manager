@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createExpense, deleteExpense } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
-import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePaymentMethodType, getMonthScopedData, getPaymentMethodLabel } from "@/lib/budget";
+import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePayerLabel, getExpensePaymentMethodType, getMonthScopedData, getPaymentMethodLabel } from "@/lib/budget";
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
 import { compressReceiptImage } from "@/lib/receipt-image";
@@ -42,7 +42,7 @@ function ExpenseDeleteForm({ id }: { id: string }) {
 function ExpenseEditForm({ data, expense, categories, onCancel }: { data: BudgetData; expense: Expense; categories: ReturnType<typeof getCategoriesByKind>; onCancel: () => void }) {
   const initialPaymentType = getExpensePaymentMethodType(expense);
   const [categoryId, setCategoryId] = useState(expense.categoryId);
-  const [payer, setPayer] = useState(expense.payer);
+  const [payer, setPayer] = useState(getExpensePayerLabel(expense));
   const [paymentMethodValue, setPaymentMethodValue] = useState(`${initialPaymentType}:${expense.paymentMethodId ?? ""}`);
   const [error, setError] = useState("");
 
@@ -298,8 +298,10 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
             return (
               <MobileCard key={expense.id} title={`${category?.icon ?? ""} ${category?.name ?? "未分類"}`} amount={yen(expense.amount)}>
                 <button className="grid gap-1 text-left transition active:scale-[0.99]" type="button" onClick={() => setEditingExpenseId(isEditing ? null : expense.id)}>
-                  <span>{expense.date} / {expense.payer || "支払者未設定"} / {getPaymentMethodLabel(data, expense)}</span>
-                  <span>{targetLabels[expense.target]}</span>
+                  <span>{expense.date}</span>
+                  <span>支払者：{getExpensePayerLabel(expense)}</span>
+                  <span>支払い方法：{getPaymentMethodLabel(data, expense)}</span>
+                  <span>対象：{targetLabels[expense.target]}</span>
                   {expense.location ? <span>場所: {expense.location}</span> : null}
                   {expense.memo ? <span>{expense.memo}</span> : null}
                   {data.members.map((member) => <span key={member.id}>{member.name}: {yen(burden[member.id] ?? 0)}</span>)}
@@ -324,7 +326,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 <Td>{expense.date}</Td>
                 <Td>{category?.name ?? "未分類"}</Td>
                 <Td>{yen(expense.amount)}</Td>
-                <Td>{expense.payer}</Td>
+                <Td>{getExpensePayerLabel(expense)}</Td>
                 <Td>{getPaymentMethodLabel(data, expense)}</Td>
                 <Td>{targetLabels[expense.target]}</Td>
                 <Td>{expense.memo}</Td>

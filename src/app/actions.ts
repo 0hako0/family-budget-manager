@@ -281,6 +281,8 @@ export async function createExpense(formData: FormData) {
   if (!amount || !categoryId || !householdGroupId) redirect("/expenses?error=支出の金額とカテゴリを入力してください");
 
   const paymentMethodType = value(formData, "paymentMethodType") || value(formData, "paidByType") || "personal";
+  const payerName = value(formData, "payer");
+  const isCommonPayer = payerName === "共通";
   const isSharedWallet = paymentMethodType === "shared_wallet";
   const payload = {
     household_group_id: householdGroupId,
@@ -289,9 +291,9 @@ export async function createExpense(formData: FormData) {
     spent_on: value(formData, "date") || getTodayJSTDateString(),
     category: "other",
     category_id: categoryId,
-    payer_name: value(formData, "payer") || (paymentMethodType === "personal" ? "" : "共通"),
-    paid_by_type: isSharedWallet ? "shared_wallet" : "member",
-    paid_by_user_id: isSharedWallet ? null : value(formData, "paidByUserId") || null,
+    payer_name: payerName || (paymentMethodType === "personal" ? "" : "共通"),
+    paid_by_type: isCommonPayer || isSharedWallet ? "shared_wallet" : "member",
+    paid_by_user_id: isCommonPayer || isSharedWallet ? null : value(formData, "paidByUserId") || null,
     payment_method_type: paymentMethodType,
     payment_method_id: value(formData, "paymentMethodId") || null,
     target: value(formData, "target") || "shared",

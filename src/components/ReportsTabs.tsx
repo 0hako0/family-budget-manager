@@ -13,6 +13,7 @@ import {
   getMonthlyComparison,
   getMonthlyPaymentMethodBreakdown,
   getMonthlyTrend,
+  getExpensePayerLabel,
   getPaymentMethodLabel,
   getTotals,
   groupExpensesByCategory
@@ -191,7 +192,7 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceD
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-ink">{category?.icon} {category?.name ?? "未分類"}</p>
-                    <p className="mt-1 text-xs font-bold text-ink/55">{expense.location || expense.memo || "場所・メモなし"} / {expense.payer || "支払者未設定"} / {getPaymentMethodLabel(data, expense)} / {targetLabels[expense.target]}</p>
+                    <p className="mt-1 text-xs font-bold text-ink/55">{expense.location || expense.memo || "場所・メモなし"} / {getExpensePayerLabel(expense)} / {getPaymentMethodLabel(data, expense)} / {targetLabels[expense.target]}</p>
                   </div>
                   <p className="shrink-0 text-sm font-black text-ink">{yen(expense.amount)}</p>
                 </div>

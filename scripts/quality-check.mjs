@@ -82,6 +82,9 @@ check("ホームから詳細画面へ導線", home.includes('href="/payments"') 
 check("支払い詳細画面", includes("src/app/(mobile)/payments/page.tsx", "クレカ請求管理"));
 check("貯金目標詳細画面", includes("src/app/(mobile)/goals/page.tsx", "貯金目標"));
 check("支払予定詳細画面", includes("src/app/(mobile)/schedule/page.tsx", "サブスク候補"));
+check("共通支払者は個人IDを保存しない", actions.includes("isCommonPayer") && actions.includes('paid_by_user_id: isCommonPayer || isSharedWallet ? null'));
+check("共有支出の負担割合を正規化", budget.includes("normalizeShares") && budget.includes("expense.target !== \"shared\""));
+check("共通支払者表示の共通関数", budget.includes("getExpensePayerLabel") && expenseEntry.includes("getExpensePayerLabel"));
 
 const failed = checks.filter((item) => !item.passed);
 

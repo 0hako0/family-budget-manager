@@ -200,6 +200,10 @@ export function getPaymentMethodLabel(data: BudgetData, expense: Expense) {
   return data.commonPaymentMethods.find((item) => item.id === expense.paymentMethodId)?.name ?? "共通クレカ";
 }
 
+export function getExpensePayerLabel(expense: Expense) {
+  return expense.paidByType === "shared_wallet" || expense.payer === "共通" ? "共通" : expense.payer || "支払者未設定";
+}
+
 export function getMonthlyPayerBreakdown(data: BudgetData, referenceDate = new Date()) {
   const scoped = getMonthScopedData(data, referenceDate);
   const memberRows = data.members.map((member) => ({
@@ -428,11 +432,11 @@ export function getReferenceDateForMonthKey(monthKey: string) {
 export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.settings.burdenRule) {
   if (data.members.length === 0) return {};
   if (rule === "fifty_fifty") return Object.fromEntries(data.members.map((member) => [member.id, 1 / data.members.length]));
-  if (rule === "custom") return data.settings.customShares;
+  if (rule === "custom") return normalizeShares(Object.fromEntries(data.members.map((member) => [member.id, data.settings.customShares[member.id] ?? member.shareRatio])));
   const incomeByName = new Map<string, number>();
   getPlannedIncomes(data).forEach((income) => incomeByName.set(income.earner, (incomeByName.get(income.earner) ?? 0) + income.amount));
   const totalIncome = sumBy(data.members, (member) => incomeByName.get(member.name) ?? 0);
-  return Object.fromEntries(data.members.map((member) => [member.id, totalIncome === 0 ? member.shareRatio : (incomeByName.get(member.name) ?? 0) / totalIncome]));
+  return normalizeShares(Object.fromEntries(data.members.map((member) => [member.id, totalIncome === 0 ? member.shareRatio : (incomeByName.get(member.name) ?? 0) / totalIncome])));
 }
 
 export function calculateSharedBurden(expense: Expense, data: BudgetData) {
@@ -442,6 +446,14 @@ export function calculateSharedBurden(expense: Expense, data: BudgetData) {
   }
   const shares = getMemberBurdenShares(data);
   return Object.fromEntries(data.members.map((member) => [member.id, expense.amount * (shares[member.id] ?? 0)]));
+}
+
+function normalizeShares(shares: Record<string, number>) {
+  const entries = Object.entries(shares).map(([id, value]) => [id, Number.isFinite(value) && value > 0 ? value : 0] as const);
+  const total = sumBy(entries, ([, value]) => value);
+  if (entries.length === 0) return {};
+  if (total <= 0) return Object.fromEntries(entries.map(([id]) => [id, 1 / entries.length]));
+  return Object.fromEntries(entries.map(([id, value]) => [id, value / total]));
 }
 
 function shiftDateKey(dateKey: string, offsetDays: number) {
