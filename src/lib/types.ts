@@ -126,6 +126,16 @@ export type SharedWalletTransaction = {
   memberId?: string;
 };
 
+export type SavingGoal = {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  dueDate?: string;
+  memo?: string;
+  archived: boolean;
+};
+
 export type MonthlySummary = {
   id: string;
   month: string;
@@ -162,6 +172,7 @@ export type BudgetData = {
   expenses: Expense[];
   commonPaymentMethods: CommonPaymentMethod[];
   sharedWalletTransactions: SharedWalletTransaction[];
+  savingGoals: SavingGoal[];
   monthlySummaries: MonthlySummary[];
   notificationRules: NotificationRule[];
 };

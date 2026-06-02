@@ -13,6 +13,20 @@ export function sumBy<T>(items: T[], getValue: (item: T) => number) {
   return items.reduce((total, item) => total + getValue(item), 0);
 }
 
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function dateInRange(date: string, start: string, end: string) {
+  return date >= start && date <= end;
+}
+
+function dateFromMonthDay(monthKey: string, day: number) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const safeDay = Math.min(day, getLastDayOfMonth(year, month));
+  return `${monthKey}-${pad2(safeDay)}`;
+}
+
 export function getCategory(data: BudgetData, categoryId: string) {
   return data.categories.find((category) => category.id === categoryId);
 }
@@ -29,8 +43,7 @@ export function getBudgetDays(referenceDate = new Date()) {
 
 export function getRemainingDays(referenceDate = new Date()) {
   const period = getMonthBudgetPeriod(referenceDate);
-  const today = getJSTDayOfMonth(referenceDate);
-  return Math.max(1, period.totalDays - today + 1);
+  return Math.max(1, period.totalDays - getJSTDayOfMonth(referenceDate) + 1);
 }
 
 export function getPlannedIncomes(data: BudgetData, referenceDate = new Date()): Income[] {
@@ -38,9 +51,8 @@ export function getPlannedIncomes(data: BudgetData, referenceDate = new Date()):
   return data.incomes
     .map((income) => {
       if (!income.recurring) return income;
-      const originalDay = Number(income.paidOn.slice(8, 10));
-      const day = Math.min(originalDay || 1, getLastDayOfMonth(period.year, period.month));
-      return { ...income, paidOn: `${period.monthKey}-${String(day).padStart(2, "0")}` };
+      const day = Math.min(Number(income.paidOn.slice(8, 10)) || 1, getLastDayOfMonth(period.year, period.month));
+      return { ...income, paidOn: `${period.monthKey}-${pad2(day)}` };
     })
     .filter((income) => isDateInMonthJST(income.paidOn, referenceDate));
 }
@@ -114,13 +126,16 @@ export function getMonthEndForecast(data: BudgetData, referenceDate = new Date()
   const variableExpenseTotal = sumBy(scoped.expenses, (expense) => expense.amount);
   const fixedOutflow = savingTotal + fixedCostTotal + loanTotal;
   const elapsedDays = Math.max(1, getJSTDayOfMonth(referenceDate));
-  const budgetDays = getBudgetDays(referenceDate);
   const variableBudgetTotal = getVariableExpenseBudgetTotal(data);
-  const paceVariableExpense = (variableExpenseTotal / elapsedDays) * budgetDays;
-  const budgetBasedLanding = incomeTotal - fixedOutflow - variableBudgetTotal;
-  const paceBasedLanding = incomeTotal - fixedOutflow - paceVariableExpense;
-
-  return { fixedOutflow, variableBudgetTotal, paceVariableExpense, budgetBasedLanding, paceBasedLanding, isEarlyMonth: elapsedDays <= 3 };
+  const paceVariableExpense = (variableExpenseTotal / elapsedDays) * getBudgetDays(referenceDate);
+  return {
+    fixedOutflow,
+    variableBudgetTotal,
+    paceVariableExpense,
+    budgetBasedLanding: incomeTotal - fixedOutflow - variableBudgetTotal,
+    paceBasedLanding: incomeTotal - fixedOutflow - paceVariableExpense,
+    isEarlyMonth: elapsedDays <= 3
+  };
 }
 
 export function getTotals(data: BudgetData, referenceDate = new Date()) {
@@ -135,7 +150,6 @@ export function getTotals(data: BudgetData, referenceDate = new Date()) {
   const remainingBudget = livingBudget - variableExpenseTotal;
   const dailyGuide = remainingBudget / getRemainingDays(referenceDate);
   const forecast = getMonthEndForecast(data, referenceDate);
-
   return {
     incomeTotal,
     paidIncomeTotal,
@@ -183,8 +197,7 @@ export function getPaymentMethodLabel(data: BudgetData, expense: Expense) {
   if (type === "personal") return `${expense.payer || "個人"}個人支払い`;
   if (type === "shared_wallet") return "共通財布";
   if (type === "household_account") return "家計口座";
-  const method = data.commonPaymentMethods.find((item) => item.id === expense.paymentMethodId);
-  return method?.name ?? "共通クレカ";
+  return data.commonPaymentMethods.find((item) => item.id === expense.paymentMethodId)?.name ?? "共通クレカ";
 }
 
 export function getMonthlyPayerBreakdown(data: BudgetData, referenceDate = new Date()) {
@@ -194,14 +207,11 @@ export function getMonthlyPayerBreakdown(data: BudgetData, referenceDate = new D
     label: member.name,
     amount: sumBy(scoped.expenses.filter((expense) => getExpensePaymentMethodType(expense) === "personal" && expense.payer === member.name), (expense) => expense.amount)
   }));
-  const sharedWalletAmount = sumBy(scoped.expenses.filter((expense) => getExpensePaymentMethodType(expense) === "shared_wallet"), (expense) => expense.amount);
-  const sharedCardAmount = sumBy(scoped.expenses.filter((expense) => getExpensePaymentMethodType(expense) === "shared_credit_card"), (expense) => expense.amount);
-  const accountAmount = sumBy(scoped.expenses.filter((expense) => getExpensePaymentMethodType(expense) === "household_account"), (expense) => expense.amount);
   return [
     ...memberRows,
-    { id: "shared_wallet", label: "共通財布", amount: sharedWalletAmount },
-    { id: "shared_credit_card", label: "共通クレカ", amount: sharedCardAmount },
-    { id: "household_account", label: "家計口座", amount: accountAmount }
+    { id: "shared_wallet", label: "共通財布", amount: sumBy(scoped.expenses.filter((expense) => getExpensePaymentMethodType(expense) === "shared_wallet"), (expense) => expense.amount) },
+    { id: "shared_credit_card", label: "共通クレカ", amount: sumBy(scoped.expenses.filter((expense) => getExpensePaymentMethodType(expense) === "shared_credit_card"), (expense) => expense.amount) },
+    { id: "household_account", label: "家計口座", amount: sumBy(scoped.expenses.filter((expense) => getExpensePaymentMethodType(expense) === "household_account"), (expense) => expense.amount) }
   ];
 }
 
@@ -210,8 +220,7 @@ export function getMonthlyPaymentMethodBreakdown(data: BudgetData, referenceDate
   getMonthScopedData(data, referenceDate).expenses.forEach((expense) => {
     const type = getExpensePaymentMethodType(expense);
     const id = type === "shared_credit_card" && expense.paymentMethodId ? expense.paymentMethodId : type === "personal" ? `personal-${expense.payer}` : type;
-    const label = getPaymentMethodLabel(data, expense);
-    const current = map.get(id) ?? { id, label, type, amount: 0 };
+    const current = map.get(id) ?? { id, label: getPaymentMethodLabel(data, expense), type, amount: 0 };
     current.amount += expense.amount;
     map.set(id, current);
   });
@@ -220,33 +229,82 @@ export function getMonthlyPaymentMethodBreakdown(data: BudgetData, referenceDate
 
 export function getSharedWalletBalance(data: BudgetData) {
   const transactionTotal = sumBy(data.sharedWalletTransactions, (row) => (row.type === "withdrawal" ? -row.amount : row.amount));
-  const expenseTotal = sumBy(data.expenses.filter(isSharedWalletExpense), (expense) => expense.amount);
-  return transactionTotal - expenseTotal;
+  return transactionTotal - sumBy(data.expenses.filter(isSharedWalletExpense), (expense) => expense.amount);
 }
 
 export function getMonthlySharedWalletUsage(data: BudgetData, referenceDate = new Date()) {
   return sumBy(getMonthScopedData(data, referenceDate).expenses.filter(isSharedWalletExpense), (expense) => expense.amount);
 }
 
-export function getMonthlySharedCreditCardUsage(data: BudgetData, referenceDate = new Date()) {
-  return sumBy(getMonthScopedData(data, referenceDate).expenses.filter(isSharedCreditCardExpense), (expense) => expense.amount);
+export function getCreditCardBillingSummaries(data: BudgetData, referenceDate = new Date()) {
+  const current = getMonthBudgetPeriod(referenceDate);
+  const today = getTodayJSTDateString(referenceDate);
+  return data.commonPaymentMethods
+    .filter((method) => method.type === "shared_credit_card" && !method.archived)
+    .map((card) => {
+      const closingDay = card.closingDay ?? current.totalDays;
+      const withdrawalDay = card.withdrawalDay ?? 27;
+      const currentClose = dateFromMonthDay(current.monthKey, closingDay);
+      const billingCloseMonth = today <= currentClose ? current.monthKey : shiftMonthKey(current.monthKey, 1);
+      const previousCloseMonth = shiftMonthKey(billingCloseMonth, -1);
+      const previousClose = dateFromMonthDay(previousCloseMonth, closingDay);
+      const billingStart = shiftDateKey(previousClose, 1);
+      const billingEnd = dateFromMonthDay(billingCloseMonth, closingDay);
+      const withdrawalMonth = shiftMonthKey(billingCloseMonth, 1);
+      const withdrawalDate = dateFromMonthDay(withdrawalMonth, withdrawalDay);
+      const expenses = data.expenses.filter((expense) => expense.paymentMethodId === card.id || (isSharedCreditCardExpense(expense) && !expense.paymentMethodId));
+      const billedExpenses = expenses.filter((expense) => dateInRange(expense.date, billingStart, billingEnd));
+      const monthlyExpenses = expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate));
+      return {
+        card,
+        billingStart,
+        billingEnd,
+        withdrawalDate,
+        monthlyUsage: sumBy(monthlyExpenses, (expense) => expense.amount),
+        nextBillingAmount: sumBy(billedExpenses, (expense) => expense.amount)
+      };
+    });
 }
 
 export function getSharedCreditCardSummary(data: BudgetData, referenceDate = new Date()) {
-  const cards = data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card" && !method.archived);
-  const expenses = getMonthScopedData(data, referenceDate).expenses.filter(isSharedCreditCardExpense);
-  const amount = sumBy(expenses, (expense) => expense.amount);
-  const firstCard = cards[0];
-  const currentPeriod = getMonthBudgetPeriod(referenceDate);
-  const nextMonth = shiftMonthKey(currentPeriod.monthKey, 1);
-  const withdrawalDay = firstCard?.withdrawalDay;
+  const summaries = getCreditCardBillingSummaries(data, referenceDate);
+  const first = summaries[0];
   return {
-    amount,
-    nextWithdrawalAmount: amount,
-    withdrawalDate: withdrawalDay ? `${nextMonth.replace("-", "/")}/${String(withdrawalDay).padStart(2, "0")}` : "未設定",
-    cardName: firstCard?.name ?? "共通クレカ",
-    withdrawalAccount: firstCard?.withdrawalAccount ?? "未設定"
+    amount: sumBy(summaries, (summary) => summary.monthlyUsage),
+    nextWithdrawalAmount: sumBy(summaries, (summary) => summary.nextBillingAmount),
+    withdrawalDate: first?.withdrawalDate.replaceAll("-", "/") ?? "未設定",
+    cardName: first?.card.name ?? "共通クレカ",
+    withdrawalAccount: first?.card.withdrawalAccount ?? "未設定"
   };
+}
+
+export function getUpcomingPayments(data: BudgetData, referenceDate = new Date()) {
+  const period = getMonthBudgetPeriod(referenceDate);
+  const today = getTodayJSTDateString(referenceDate);
+  const rows: Array<{ date: string; type: "income" | "fixed_cost" | "loan" | "credit_card" | "saving"; label: string; amount: number; tone?: "income" | "outflow" }> = [];
+  getPlannedIncomes(data, referenceDate).forEach((income) => rows.push({ date: income.paidOn, type: "income", label: `給与・収入: ${income.name}`, amount: income.amount, tone: "income" }));
+  data.fixedCosts.forEach((cost) => rows.push({ date: dateFromMonthDay(period.monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
+  data.loans.forEach((loan) => rows.push({ date: dateFromMonthDay(period.monthKey, loan.paidOn), type: "loan", label: `ローン: ${loan.name}`, amount: loan.monthlyPayment, tone: "outflow" }));
+  data.savings.forEach((saving) => rows.push({ date: period.startDate, type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
+  getCreditCardBillingSummaries(data, referenceDate).forEach((summary) => rows.push({ date: summary.withdrawalDate, type: "credit_card", label: `クレカ引落: ${summary.card.name}`, amount: summary.nextBillingAmount, tone: "outflow" }));
+  return rows.filter((row) => row.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
+}
+
+export function getSubscriptionCandidates(data: BudgetData) {
+  const groups = new Map<string, Expense[]>();
+  data.expenses.forEach((expense) => {
+    const key = `${expense.amount}-${expense.location || expense.memo || expense.categoryId}`;
+    groups.set(key, [...(groups.get(key) ?? []), expense]);
+  });
+  return Array.from(groups.values())
+    .map((expenses) => {
+      const months = new Set(expenses.map((expense) => expense.date.slice(0, 7)));
+      const latest = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+      return { latest, count: months.size, months: Array.from(months).sort() };
+    })
+    .filter((item) => item.count >= 2)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 }
 
 export function createCurrentMonthlySummary(data: BudgetData, referenceDate = new Date()): MonthlySummary {
@@ -293,9 +351,8 @@ export function getComparisonSummary(data: BudgetData, target: CompareTarget, re
   if (target === "two_months_ago") return summaries.find((summary) => summary.month === shiftMonthKey(currentMonthKey, -2));
   if (target === "six_months_ago") return summaries.find((summary) => summary.month === shiftMonthKey(currentMonthKey, -6));
   if (target === "same_month_last_year") return summaries.find((summary) => summary.month === shiftMonthKey(currentMonthKey, -12));
-
-  const lastThreeKeys = [shiftMonthKey(currentMonthKey, -1), shiftMonthKey(currentMonthKey, -2), shiftMonthKey(currentMonthKey, -3)];
-  const lastThree = summaries.filter((summary) => lastThreeKeys.includes(summary.month));
+  const keys = [shiftMonthKey(currentMonthKey, -1), shiftMonthKey(currentMonthKey, -2), shiftMonthKey(currentMonthKey, -3)];
+  const lastThree = summaries.filter((summary) => keys.includes(summary.month));
   if (lastThree.length === 0) return undefined;
   return averageSummaries("3か月平均", lastThree);
 }
@@ -312,9 +369,7 @@ function averageSummaries(month: string, summaries: MonthlySummary[]): MonthlySu
     savingTotal: average(summaries.map((summary) => summary.savingTotal)),
     remainingBudget: average(summaries.map((summary) => summary.remainingBudget)),
     landingResult: average(summaries.map((summary) => summary.landingResult)),
-    categoryExpenses: Object.fromEntries(
-      Array.from(categoryIds).map((categoryId) => [categoryId, average(summaries.map((summary) => summary.categoryExpenses[categoryId] ?? 0))])
-    ),
+    categoryExpenses: Object.fromEntries(Array.from(categoryIds).map((categoryId) => [categoryId, average(summaries.map((summary) => summary.categoryExpenses[categoryId] ?? 0))])),
     memo: "過去3か月の平均です。",
     closedAt: ""
   };
@@ -335,7 +390,6 @@ export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "
     ["貯金・投資", current.savingTotal, compared?.savingTotal ?? 0],
     ["残額", current.remainingBudget, compared?.remainingBudget ?? 0]
   ] as const;
-
   return {
     current,
     compared,
@@ -357,12 +411,11 @@ export function getCalendarDaySummaries(data: BudgetData, referenceDate = new Da
     dailyTotals.set(expense.date, (dailyTotals.get(expense.date) ?? 0) + expense.amount);
     dailyExpenses.set(expense.date, [...(dailyExpenses.get(expense.date) ?? []), expense]);
   });
-
   const firstWeekday = new Date(Date.UTC(period.year, period.month - 1, 1)).getUTCDay();
   const cells: Array<{ date: string; day: number | null; total: number; expenses: Expense[]; inMonth: boolean }> = [];
   for (let i = 0; i < firstWeekday; i += 1) cells.push({ date: "", day: null, total: 0, expenses: [], inMonth: false });
   for (let day = 1; day <= period.totalDays; day += 1) {
-    const date = `${period.monthKey}-${String(day).padStart(2, "0")}`;
+    const date = `${period.monthKey}-${pad2(day)}`;
     cells.push({ date, day, total: dailyTotals.get(date) ?? 0, expenses: dailyExpenses.get(date) ?? [], inMonth: true });
   }
   return { period, cells };
@@ -376,7 +429,6 @@ export function getMemberBurdenShares(data: BudgetData, rule: BurdenRule = data.
   if (data.members.length === 0) return {};
   if (rule === "fifty_fifty") return Object.fromEntries(data.members.map((member) => [member.id, 1 / data.members.length]));
   if (rule === "custom") return data.settings.customShares;
-
   const incomeByName = new Map<string, number>();
   getPlannedIncomes(data).forEach((income) => incomeByName.set(income.earner, (incomeByName.get(income.earner) ?? 0) + income.amount));
   const totalIncome = sumBy(data.members, (member) => incomeByName.get(member.name) ?? 0);
@@ -390,4 +442,13 @@ export function calculateSharedBurden(expense: Expense, data: BudgetData) {
   }
   const shares = getMemberBurdenShares(data);
   return Object.fromEntries(data.members.map((member) => [member.id, expense.amount * (shares[member.id] ?? 0)]));
+}
+
+function shiftDateKey(dateKey: string, offsetDays: number) {
+  const date = new Date(`${dateKey}T00:00:00+09:00`);
+  date.setDate(date.getDate() + offsetDays);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${year}-${pad2(month)}-${pad2(day)}`;
 }

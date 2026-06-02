@@ -333,6 +333,19 @@ create table if not exists public.shared_wallet_transactions (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.saving_goals (
+  id uuid primary key default gen_random_uuid(),
+  household_group_id uuid not null references public.household_groups(id) on delete cascade,
+  name text not null,
+  target_amount integer not null check (target_amount >= 0),
+  current_amount integer not null default 0 check (current_amount >= 0),
+  due_date date,
+  memo text not null default '',
+  archived boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.users enable row level security;
 alter table public.household_groups enable row level security;
 alter table public.household_members enable row level security;
@@ -347,6 +360,7 @@ alter table public.expenses enable row level security;
 alter table public.common_payment_methods enable row level security;
 alter table public.monthly_summaries enable row level security;
 alter table public.shared_wallet_transactions enable row level security;
+alter table public.saving_goals enable row level security;
 
 create or replace function public.is_household_member(group_id uuid)
 returns boolean
@@ -578,7 +592,7 @@ do $$
 declare
   table_name text;
 begin
-  foreach table_name in array array['category_budgets', 'incomes', 'savings', 'fixed_costs', 'loans', 'expenses', 'common_payment_methods', 'monthly_summaries', 'shared_wallet_transactions']
+  foreach table_name in array array['category_budgets', 'incomes', 'savings', 'fixed_costs', 'loans', 'expenses', 'common_payment_methods', 'monthly_summaries', 'shared_wallet_transactions', 'saving_goals']
   loop
     execute format('drop policy if exists "household data select" on public.%I', table_name);
     execute format('create policy "household data select" on public.%I for select to authenticated using (public.is_household_member(household_group_id))', table_name);
@@ -604,6 +618,7 @@ create index if not exists idx_expenses_payment_method_id on public.expenses(pay
 create index if not exists idx_common_payment_methods_household_group_id on public.common_payment_methods(household_group_id, type);
 create index if not exists idx_monthly_summaries_household_group_id on public.monthly_summaries(household_group_id);
 create index if not exists idx_shared_wallet_transactions_household_group_id on public.shared_wallet_transactions(household_group_id, occurred_on);
+create index if not exists idx_saving_goals_household_group_id on public.saving_goals(household_group_id, archived);
 
 drop trigger if exists set_users_updated_at on public.users;
 create trigger set_users_updated_at before update on public.users for each row execute function public.set_updated_at();
@@ -633,3 +648,5 @@ drop trigger if exists set_monthly_summaries_updated_at on public.monthly_summar
 create trigger set_monthly_summaries_updated_at before update on public.monthly_summaries for each row execute function public.set_updated_at();
 drop trigger if exists set_shared_wallet_transactions_updated_at on public.shared_wallet_transactions;
 create trigger set_shared_wallet_transactions_updated_at before update on public.shared_wallet_transactions for each row execute function public.set_updated_at();
+drop trigger if exists set_saving_goals_updated_at on public.saving_goals;
+create trigger set_saving_goals_updated_at before update on public.saving_goals for each row execute function public.set_updated_at();

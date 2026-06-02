@@ -6,6 +6,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { MonthlySnapshotRunner } from "@/components/MonthlySnapshotRunner";
 import {
   getBudgetConsumption,
+  getCreditCardBillingSummaries,
   getMemberBurdenShares,
   getMonthlyCategoryBudgetProgress,
   getMonthlyPayerBreakdown,
@@ -14,11 +15,14 @@ import {
   getRemainingDays,
   getSharedCreditCardSummary,
   getSharedWalletBalance,
+  getSubscriptionCandidates,
+  getUpcomingPayments,
   getTotals
 } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import { getCurrentMonthPeriodJST, getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
+import type { BudgetData } from "@/lib/types";
 
 export default async function Home({ searchParams }: { searchParams?: { error?: string } }) {
   const data = await getBudgetData();
@@ -36,6 +40,9 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   const sharedWalletBalance = getSharedWalletBalance(data);
   const sharedWalletUsage = getMonthlySharedWalletUsage(data, referenceDate);
   const sharedCard = getSharedCreditCardSummary(data, referenceDate);
+  const creditCardBills = getCreditCardBillingSummaries(data, referenceDate);
+  const upcomingPayments = getUpcomingPayments(data, referenceDate);
+  const subscriptionCandidates = getSubscriptionCandidates(data);
   const widgets = data.settings.homeWidgets;
 
   return (
@@ -120,6 +127,88 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
         </section>
       ) : null}
 
+      <section className="rounded-[22px] bg-white p-4 shadow-sm">
+        <h2 className="text-base font-black text-ink">今後の支払予定</h2>
+        {upcomingPayments.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">直近の予定はありません</p> : null}
+        <div className="mt-3 grid gap-2">
+          {upcomingPayments.map((item) => (
+            <div key={`${item.type}-${item.date}-${item.label}`} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 px-3 py-3 text-sm">
+              <div className="min-w-0">
+                <p className="truncate font-black text-ink">{item.label}</p>
+                <p className="text-xs font-bold text-ink/50">{item.date.replaceAll("-", "/")}</p>
+              </div>
+              <strong className={item.tone === "income" ? "shrink-0 text-leaf" : "shrink-0 text-warn"}>{item.tone === "income" ? "+" : "-"}{yen(item.amount)}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {creditCardBills.length > 0 ? (
+        <section className="rounded-[22px] bg-white p-4 shadow-sm">
+          <h2 className="text-base font-black text-ink">クレカ請求管理</h2>
+          <div className="mt-3 grid gap-3">
+            {creditCardBills.map((bill) => (
+              <div key={bill.card.id} className="rounded-2xl bg-cream/60 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black text-ink">{bill.card.name}</p>
+                    <p className="mt-1 text-xs font-bold text-ink/55">対象: {bill.billingStart.replaceAll("-", "/")}〜{bill.billingEnd.replaceAll("-", "/")}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-ink/50">次回請求</p>
+                    <p className="text-lg font-black text-leaf">{yen(bill.nextBillingAmount)}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-ink/60">
+                  <p>今月利用 {yen(bill.monthlyUsage)}</p>
+                  <p>引落 {bill.withdrawalDate.replaceAll("-", "/")}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="rounded-[22px] bg-white p-4 shadow-sm">
+        <h2 className="text-base font-black text-ink">貯金目標</h2>
+        {data.savingGoals.filter((goal) => !goal.archived).length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだ貯金目標がありません。設定から追加できます。</p> : null}
+        <div className="mt-3 grid gap-3">
+          {data.savingGoals.filter((goal) => !goal.archived).slice(0, 3).map((goal) => {
+            const rate = goal.targetAmount === 0 ? 0 : goal.currentAmount / goal.targetAmount;
+            return (
+              <div key={goal.id} className="rounded-2xl bg-cream/60 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-black text-ink">{goal.name}</p>
+                  <p className="font-black text-leaf">{Math.round(rate * 100)}%</p>
+                </div>
+                <p className="mt-1 text-xs font-bold text-ink/55">現在 {yen(goal.currentAmount)} / 目標 {yen(goal.targetAmount)}</p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                  <div className="h-full rounded-full bg-leaf" style={{ width: `${Math.min(100, Math.round(rate * 100))}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {subscriptionCandidates.length > 0 ? (
+        <section className="rounded-[22px] bg-white p-4 shadow-sm">
+          <h2 className="text-base font-black text-ink">サブスク候補</h2>
+          <p className="mt-1 text-xs font-bold text-ink/55">同じ金額・同じ店舗が複数月に出ています。固定費登録の候補です。</p>
+          <div className="mt-3 grid gap-2">
+            {subscriptionCandidates.map((item) => (
+              <div key={`${item.latest.amount}-${item.latest.location}-${item.latest.memo}`} className="rounded-2xl bg-cream/60 p-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-black text-ink">{item.latest.location || item.latest.memo || getCategoryLabel(data, item.latest.categoryId)}</p>
+                  <strong className="text-leaf">{yen(item.latest.amount)}</strong>
+                </div>
+                <p className="mt-1 text-xs font-bold text-ink/55">{item.count}か月で検出</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {widgets.categoryBudget ? (
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
@@ -169,4 +258,8 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
       </details>
     </div>
   );
+}
+
+function getCategoryLabel(data: BudgetData, categoryId: string) {
+  return data.categories.find((category) => category.id === categoryId)?.name ?? "未分類";
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { saveCommonPaymentMethod, updateHouseholdMember, updateHouseholdSettings } from "@/app/actions";
+import { saveCommonPaymentMethod, saveSavingGoal, updateHouseholdMember, updateHouseholdSettings } from "@/app/actions";
 import { CategoryManager } from "@/components/CategoryManager";
 import { DataExportTools } from "@/components/DataExportTools";
 import { inputClass } from "@/components/FormCard";
@@ -121,6 +121,42 @@ export default async function SettingsPage({
               <input className={inputClass} name="withdrawalAccount" defaultValue={card.withdrawalAccount ?? ""} placeholder="引き落とし口座" />
               <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-ink">
                 <input name="archived" type="checkbox" defaultChecked={card.archived} />
+                非表示にする
+              </label>
+              <FormSubmitButton idleLabel="更新する" pendingLabel="保存中..." />
+            </form>
+          ))}
+        </div>
+      </details>
+
+      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">貯金目標</summary>
+        <form action={saveSavingGoal} className="mt-3 grid gap-3 rounded-2xl bg-cream/60 p-3">
+          <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+          <label className="grid gap-1 text-sm font-bold text-ink/65">目標名<input className={inputClass} name="name" placeholder="住宅購入" required /></label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="grid gap-1 text-sm font-bold text-ink/65">目標金額<input className={inputClass} name="targetAmount" type="number" inputMode="numeric" placeholder="5000000" required /></label>
+            <label className="grid gap-1 text-sm font-bold text-ink/65">現在額<input className={inputClass} name="currentAmount" type="number" inputMode="numeric" placeholder="1820000" /></label>
+          </div>
+          <label className="grid gap-1 text-sm font-bold text-ink/65">期限<input className={inputClass} name="dueDate" type="date" /></label>
+          <label className="grid gap-1 text-sm font-bold text-ink/65">メモ<input className={inputClass} name="memo" placeholder="頭金、教育費など" /></label>
+          <FormSubmitButton idleLabel="目標を登録" pendingLabel="保存中..." />
+        </form>
+        <div className="mt-3 grid gap-3">
+          {data.savingGoals.length === 0 ? <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだ貯金目標がありません</p> : null}
+          {data.savingGoals.map((goal) => (
+            <form key={goal.id} action={saveSavingGoal} className="grid gap-3 rounded-2xl bg-cream/60 p-3">
+              <input type="hidden" name="id" value={goal.id} />
+              <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+              <input className={inputClass} name="name" defaultValue={goal.name} required />
+              <div className="grid grid-cols-2 gap-3">
+                <input className={inputClass} name="targetAmount" type="number" inputMode="numeric" defaultValue={goal.targetAmount} required />
+                <input className={inputClass} name="currentAmount" type="number" inputMode="numeric" defaultValue={goal.currentAmount} />
+              </div>
+              <input className={inputClass} name="dueDate" type="date" defaultValue={goal.dueDate ?? ""} />
+              <input className={inputClass} name="memo" defaultValue={goal.memo ?? ""} />
+              <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-ink">
+                <input name="archived" type="checkbox" defaultChecked={goal.archived} />
                 非表示にする
               </label>
               <FormSubmitButton idleLabel="更新する" pendingLabel="保存中..." />

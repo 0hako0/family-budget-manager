@@ -236,6 +236,34 @@ export async function saveCommonPaymentMethod(formData: FormData) {
   redirect("/settings?saved=household");
 }
 
+export async function saveSavingGoal(formData: FormData) {
+  const { supabase } = await requireUser();
+  const id = value(formData, "id");
+  const householdGroupId = value(formData, "householdGroupId");
+  const name = value(formData, "name");
+  const targetAmount = numberValue(formData, "targetAmount");
+
+  if (!householdGroupId || !name || !targetAmount) redirect("/settings?settingsError=貯金目標名と目標金額を入力してください");
+
+  const payload = {
+    household_group_id: householdGroupId,
+    name,
+    target_amount: targetAmount,
+    current_amount: numberValue(formData, "currentAmount"),
+    due_date: value(formData, "dueDate") || null,
+    memo: value(formData, "memo"),
+    archived: checked(formData, "archived")
+  };
+
+  const { error } = id
+    ? await supabase.from("saving_goals").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
+    : await supabase.from("saving_goals").insert(payload);
+
+  if (error) redirect(`/settings?settingsError=${encodeURIComponent(error.message)}`);
+  revalidateCore();
+  redirect("/settings?saved=household");
+}
+
 export async function createSharedWalletTransaction(formData: FormData) {
   const { supabase } = await requireUser();
   const householdGroupId = value(formData, "householdGroupId");

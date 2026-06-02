@@ -41,6 +41,7 @@ export const emptyBudgetData: BudgetData = {
   expenses: [],
   commonPaymentMethods: [],
   sharedWalletTransactions: [],
+  savingGoals: [],
   monthlySummaries: [],
   notificationRules: []
 };
@@ -75,6 +76,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     expensesResult,
     paymentMethodsResult,
     walletResult,
+    savingGoalsResult,
     summariesResult
   ] = await Promise.all([
     supabase.from("household_groups").select("*").eq("id", groupId).maybeSingle(),
@@ -87,6 +89,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     supabase.from("expenses").select("*").eq("household_group_id", groupId).order("spent_on", { ascending: false }),
     supabase.from("common_payment_methods").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
     supabase.from("shared_wallet_transactions").select("*").eq("household_group_id", groupId).order("occurred_on", { ascending: false }),
+    supabase.from("saving_goals").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
     supabase.from("monthly_summaries").select("*").eq("household_group_id", groupId).order("target_month", { ascending: false })
   ]);
 
@@ -195,6 +198,15 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       occurredOn: String(row.occurred_on ?? ""),
       memo: String(row.memo ?? ""),
       memberId: row.member_id ? String(row.member_id) : undefined
+    })),
+    savingGoals: (savingGoalsResult.data ?? []).map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      name: String(row.name ?? ""),
+      targetAmount: Number(row.target_amount ?? 0),
+      currentAmount: Number(row.current_amount ?? 0),
+      dueDate: row.due_date ? String(row.due_date) : undefined,
+      memo: row.memo ? String(row.memo) : undefined,
+      archived: Boolean(row.archived)
     })),
     monthlySummaries: (summariesResult.data ?? []).map((summary: Record<string, unknown>) => ({
       id: String(summary.id),
