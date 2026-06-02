@@ -415,6 +415,61 @@ export async function saveCategory(formData: FormData) {
   revalidateCore();
 }
 
+export async function createExpenseCategoryFromInput(formData: FormData) {
+  const { supabase } = await requireUser();
+  const householdGroupId = value(formData, "householdGroupId");
+  const name = value(formData, "name").replace(/\s+/g, " ");
+
+  if (!householdGroupId) return { error: "家計グループを確認できませんでした。画面を更新してください。" };
+  if (!name) return { error: "カテゴリ名を入力してください。" };
+  if (name.length > 20) return { error: "カテゴリ名は20文字以内で入力してください。" };
+
+  const { data: existing, error: existingError } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("household_group_id", householdGroupId)
+    .eq("kind", "expense")
+    .eq("name", name)
+    .maybeSingle();
+
+  if (existingError) return { error: toJapaneseError(existingError.message) };
+  if (existing) return { error: "同じ名前のカテゴリがすでにあります。" };
+
+  const { data, error } = await supabase
+    .from("categories")
+    .insert({
+      household_group_id: householdGroupId,
+      kind: "expense",
+      name,
+      icon: value(formData, "icon") || "📦",
+      color: value(formData, "color") || "#2f8f6b",
+      monthly_budget: value(formData, "monthlyBudget") ? numberValue(formData, "monthlyBudget") : null,
+      favorite: checked(formData, "favorite"),
+      hidden: false,
+      archived: false,
+      sort_order: numberValue(formData, "sortOrder", 999)
+    })
+    .select("id, kind, name, color, icon, sort_order, hidden, archived, monthly_budget, favorite")
+    .single();
+
+  if (error) return { error: toJapaneseError(error.message) };
+  revalidateCore();
+  return {
+    category: {
+      id: String(data.id),
+      kind: "expense" as CategoryKind,
+      name: String(data.name ?? ""),
+      color: String(data.color ?? "#2f8f6b"),
+      icon: String(data.icon ?? "📦"),
+      sortOrder: Number(data.sort_order ?? 999),
+      hidden: Boolean(data.hidden),
+      archived: Boolean(data.archived),
+      monthlyBudget: data.monthly_budget == null ? undefined : Number(data.monthly_budget),
+      favorite: Boolean(data.favorite)
+    }
+  };
+}
+
 export async function archiveCategory(formData: FormData) {
   const { supabase } = await requireUser();
   const { error } = await supabase.from("categories").update({ archived: true }).eq("id", value(formData, "id"));

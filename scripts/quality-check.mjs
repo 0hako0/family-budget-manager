@@ -88,6 +88,9 @@ check("共通支払者表示の共通関数", budget.includes("getExpensePayerLa
 check("設定の詳細管理リンクを削除", !settings.includes("詳細管理") && !settings.includes('href="/incomes"') && !settings.includes('href="/savings"') && !settings.includes('href="/loans"'));
 check("貯金目標金額欄はスマホ縦並び", settings.includes("grid gap-3 sm:grid-cols-2") && settings.includes("目標金額") && settings.includes("現在額"));
 check("カテゴリ設定は家計グループ直後", settings.indexOf("家計グループ設定") < settings.indexOf("カテゴリ設定") && settings.indexOf("カテゴリ設定") < settings.indexOf("共通クレジットカード"));
+check("支出入力でカテゴリ追加", expenseEntry.includes("＋ 新しいカテゴリを追加") && expenseEntry.includes("NewExpenseCategorySheet"));
+check("カテゴリ追加後に自動選択", expenseEntry.includes("onCreated") && expenseEntry.includes("setCategoryId(category.id)"));
+check("カテゴリ重複作成を防止", actions.includes("createExpenseCategoryFromInput") && actions.includes("同じ名前のカテゴリがすでにあります"));
 
 const failed = checks.filter((item) => !item.passed);
 

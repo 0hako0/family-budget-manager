@@ -2,14 +2,15 @@
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { createExpense, deleteExpense } from "@/app/actions";
+import { createExpense, createExpenseCategoryFromInput, deleteExpense } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePayerLabel, getExpensePaymentMethodType, getMonthScopedData, getPaymentMethodLabel } from "@/lib/budget";
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
 import { compressReceiptImage } from "@/lib/receipt-image";
-import type { BudgetData, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
+import type { BudgetData, Category, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
 import { MobileCard, MobileCards } from "./MobileCards";
@@ -20,6 +21,7 @@ const targetLabels: Record<ExpenseTarget, string> = {
   partner_only: "パートナーのみ"
 };
 const quickEntryStorageKey = "family-budget:expense-quick-entry";
+const newCategoryValue = "__new_expense_category__";
 
 function DeleteExpenseButton() {
   const { pending } = useFormStatus();
@@ -92,7 +94,10 @@ function ExpenseEditForm({ data, expense, categories, onCancel }: { data: Budget
 }
 
 export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; errorMessage?: string }) {
-  const categories = useMemo(() => getCategoriesByKind(data, "expense"), [data]);
+  const router = useRouter();
+  const baseCategories = useMemo(() => getCategoriesByKind(data, "expense"), [data]);
+  const [createdCategories, setCreatedCategories] = useState<Category[]>([]);
+  const categories = useMemo(() => [...baseCategories, ...createdCategories].sort((a, b) => a.sortOrder - b.sortOrder), [baseCategories, createdCategories]);
   const favoriteCategories = useMemo(() => categories.filter((category) => category.favorite).slice(0, 6), [categories]);
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
@@ -108,6 +113,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [ocrMessage, setOcrMessage] = useState("");
   const [isCompressingReceipt, setIsCompressingReceipt] = useState(false);
   const [compressedReceiptSize, setCompressedReceiptSize] = useState<number | null>(null);
+  const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
 
   const currentMonthExpenses = useMemo(() => getMonthScopedData(data).expenses, [data]);
   const recentExpenses = useMemo(() => currentMonthExpenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3), [currentMonthExpenses]);
@@ -122,14 +128,30 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         paymentMethodValue: string;
         target: ExpenseTarget;
       }>;
-      if (saved.categoryId && categories.some((category) => category.id === saved.categoryId)) setCategoryId(saved.categoryId);
+      if (saved.categoryId && baseCategories.some((category) => category.id === saved.categoryId)) setCategoryId(saved.categoryId);
       if (saved.payer) setPayer(saved.payer);
       if (saved.paymentMethodValue) setPaymentMethodValue(saved.paymentMethodValue);
       if (saved.target) setTarget(saved.target);
     } catch {
       window.localStorage.removeItem(quickEntryStorageKey);
     }
-  }, [categories]);
+  }, [baseCategories]);
+
+  function selectCategory(category: Category) {
+    setCreatedCategories((current) => (current.some((item) => item.id === category.id) ? current : [...current, category]));
+    setCategoryId(category.id);
+    setError("");
+    window.localStorage.setItem(
+      quickEntryStorageKey,
+      JSON.stringify({
+        categoryId: category.id,
+        payer,
+        paymentMethodValue,
+        target
+      })
+    );
+    router.refresh();
+  }
 
   function rememberQuickEntryDefaults() {
     window.localStorage.setItem(
@@ -219,9 +241,21 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         </div>
 
         <Field label="カテゴリ" className="mt-4">
-          <select className="mobile-input" name="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+          <select
+            className="mobile-input"
+            name="categoryId"
+            value={categoryId}
+            onChange={(event) => {
+              if (event.target.value === newCategoryValue) {
+                setIsCategorySheetOpen(true);
+                return;
+              }
+              setCategoryId(event.target.value);
+            }}
+          >
             <option value="">選択してください</option>
             {categories.map((category) => <option key={category.id} value={category.id}>{category.icon} {category.name}</option>)}
+            <option value={newCategoryValue}>＋ 新しいカテゴリを追加</option>
           </select>
         </Field>
 
@@ -274,12 +308,24 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         </details>
 
         {displayError ? <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{displayError}</p> : null}
-        {categories.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink/60">支出カテゴリがまだありません。設定でカテゴリを追加してください。</p> : null}
+        {categories.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink/60">支出カテゴリがまだありません。この画面で新しいカテゴリを追加できます。</p> : null}
         <div className="mt-5 hidden sm:block"><FormSubmitButton className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft transition active:scale-[0.98] disabled:bg-ink/20" /></div>
         <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4 sm:hidden">
           <FormSubmitButton className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft transition active:scale-[0.98] disabled:bg-ink/20" />
         </div>
       </form>
+
+      {isCategorySheetOpen ? (
+        <NewExpenseCategorySheet
+          householdGroupId={data.householdGroupId ?? ""}
+          existingNames={categories.map((category) => category.name)}
+          onClose={() => setIsCategorySheetOpen(false)}
+          onCreated={(category) => {
+            selectCategory(category);
+            setIsCategorySheetOpen(false);
+          }}
+        />
+      ) : null}
 
       <MetricCard label="今月の変動費" value={yen(total)} tone="accent" />
 
@@ -345,6 +391,100 @@ function PayerSelect({ data, value, onChange }: { data: BudgetData; value: strin
       <option value="共通">共通</option>
       {data.members.map((member) => <option key={member.id}>{member.name}</option>)}
     </select>
+  );
+}
+
+function NewExpenseCategorySheet({
+  householdGroupId,
+  existingNames,
+  onClose,
+  onCreated
+}: {
+  householdGroupId: string;
+  existingNames: string[];
+  onClose: () => void;
+  onCreated: (category: Category) => void;
+}) {
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("📦");
+  const [color, setColor] = useState("#2f8f6b");
+  const [monthlyBudget, setMonthlyBudget] = useState("");
+  const [favorite, setFavorite] = useState(false);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedName = name.trim().replace(/\s+/g, " ");
+    if (!trimmedName) {
+      setError("カテゴリ名を入力してください。");
+      return;
+    }
+    if (trimmedName.length > 20) {
+      setError("カテゴリ名は20文字以内で入力してください。");
+      return;
+    }
+    if (existingNames.some((existingName) => existingName.trim() === trimmedName)) {
+      setError("同じ名前のカテゴリがすでにあります。");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+    const result = await createExpenseCategoryFromInput(new FormData(event.currentTarget));
+    setIsSubmitting(false);
+
+    if ("error" in result && result.error) {
+      setError(result.error);
+      return;
+    }
+    if ("category" in result && result.category) onCreated(result.category);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-ink/30 px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-20 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="mx-auto grid max-h-[calc(100dvh-6rem)] max-w-md gap-4 overflow-y-auto rounded-t-[28px] bg-white p-5 shadow-soft">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-black text-leaf">支出カテゴリ</p>
+            <h2 className="mt-1 text-xl font-black text-ink">新しいカテゴリを追加</h2>
+          </div>
+          <button className="min-h-10 rounded-full bg-cream px-4 text-sm font-black text-ink/60 transition active:scale-[0.98]" type="button" onClick={onClose}>
+            閉じる
+          </button>
+        </div>
+
+        <form className="grid gap-3" onSubmit={submit}>
+          <input type="hidden" name="householdGroupId" value={householdGroupId} />
+          <input type="hidden" name="sortOrder" value="999" />
+          <Field label="カテゴリ名">
+            <input className="mobile-input" name="name" value={name} maxLength={20} placeholder="猫用品" required onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <div className="grid grid-cols-[96px_1fr] gap-3">
+            <Field label="アイコン">
+              <input className="mobile-input text-center text-xl" name="icon" value={icon} maxLength={4} onChange={(event) => setIcon(event.target.value)} />
+            </Field>
+            <Field label="色">
+              <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-emerald-900/10 bg-white px-4 py-2">
+                <input className="h-9 w-12 rounded-lg" name="color" type="color" value={color} onChange={(event) => setColor(event.target.value)} />
+                <span className="text-sm font-bold text-ink/60">{color}</span>
+              </div>
+            </Field>
+          </div>
+          <Field label="月予算">
+            <input className="mobile-input" name="monthlyBudget" type="number" inputMode="numeric" min={0} value={monthlyBudget} placeholder="10000" onChange={(event) => setMonthlyBudget(event.target.value)} />
+          </Field>
+          <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink">
+            <input name="favorite" type="checkbox" checked={favorite} onChange={(event) => setFavorite(event.target.checked)} />
+            よく使うカテゴリに表示する
+          </label>
+          {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{error}</p> : null}
+          <button className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm transition active:scale-[0.98] disabled:bg-ink/20" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "追加中..." : "追加する"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 
