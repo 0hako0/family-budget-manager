@@ -24,21 +24,15 @@ function checked(formData: FormData, key: string) {
 
 function authErrorMessage(message: string) {
   const lower = message.toLowerCase();
-  if (lower.includes("email not confirmed")) {
-    return "このアカウントは確認待ち状態です。再登録するか管理者に確認してください。";
-  }
-  if (lower.includes("rate limit")) {
-    return "メール送信制限に達しました。Supabase Auth の Confirm email を OFF にしているか確認してください。";
-  }
+  if (lower.includes("email not confirmed")) return "このアカウントは確認待ち状態です。再登録するか管理者に確認してください。";
+  if (lower.includes("rate limit")) return "メール送信制限に達しました。Supabase Auth の Confirm email を OFF にしているか確認してください。";
   return message;
 }
 
 function inviteErrorMessage(message: string) {
   const lower = message.toLowerCase();
   if (lower.includes("not authenticated")) return "ログイン状態を確認できませんでした。もう一度ログインしてください。";
-  if (lower.includes("invite") || lower.includes("code") || lower.includes("not found") || lower.includes("家計コード")) {
-    return "家計コードが見つかりません。コードを確認してください。";
-  }
+  if (lower.includes("invite") || lower.includes("code") || lower.includes("not found") || lower.includes("家計コード")) return "家計コードが見つかりません。コードを確認してください。";
   return message;
 }
 
@@ -51,31 +45,17 @@ async function requireUser() {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!session || !user) {
-    redirect(`/login?error=${encodeURIComponent("ログイン状態を確認できませんでした。もう一度ログインしてください。")}`);
-  }
-
+  if (!session || !user) redirect(`/login?error=${encodeURIComponent("ログイン状態を確認できませんでした。もう一度ログインしてください。")}`);
   return { supabase, user };
 }
 
 function revalidateCore() {
-  revalidatePath("/");
-  revalidatePath("/expenses");
-  revalidatePath("/fixed-costs");
-  revalidatePath("/incomes");
-  revalidatePath("/savings");
-  revalidatePath("/loans");
-  revalidatePath("/reports");
-  revalidatePath("/settings");
+  ["/", "/expenses", "/fixed-costs", "/incomes", "/savings", "/loans", "/reports", "/settings"].forEach((path) => revalidatePath(path));
 }
 
 export async function signIn(formData: FormData) {
   const supabase = createServerSupabaseClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: value(formData, "email"),
-    password: value(formData, "password")
-  });
-
+  const { error } = await supabase.auth.signInWithPassword({ email: value(formData, "email"), password: value(formData, "password") });
   if (error) redirect(`/login?error=${encodeURIComponent(authErrorMessage(error.message))}`);
   redirect("/");
 }
@@ -85,19 +65,12 @@ export async function signUp(formData: FormData) {
   const email = value(formData, "email");
   const password = value(formData, "password");
   const displayName = value(formData, "displayName") || email;
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { display_name: displayName } }
-  });
-
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName } } });
   if (error) redirect(`/signup?error=${encodeURIComponent(authErrorMessage(error.message))}`);
-
   if (!data.session) {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) redirect(`/signup?error=${encodeURIComponent(authErrorMessage(signInError.message))}`);
   }
-
   redirect("/setup");
 }
 
@@ -109,27 +82,19 @@ export async function signOut() {
 
 export async function setupHousehold(formData: FormData) {
   const { supabase, user } = await requireUser();
-  const groupName = value(formData, "groupName") || "わが家の家計";
-  const displayName = value(formData, "displayName") || user.email || "自分";
-  const burdenRule = value(formData, "burdenRule") || "fifty_fifty";
-  const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
-
   const { error } = await supabase.rpc("create_household_group", {
-    group_name: groupName,
-    display_name: displayName,
-    burden_rule_value: burdenRule,
-    share_ratio_value: shareRatio
+    group_name: value(formData, "groupName") || "わが家の家計",
+    display_name: value(formData, "displayName") || user.email || "自分",
+    burden_rule_value: value(formData, "burdenRule") || "fifty_fifty",
+    share_ratio_value: Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100))
   });
-
   if (error) redirect(`/setup?error=${encodeURIComponent(error.message)}`);
   redirect("/");
 }
 
 export async function createInvitation(formData: FormData) {
   const { supabase } = await requireUser();
-  const groupId = value(formData, "householdGroupId");
-  const { data, error } = await supabase.from("household_groups").select("invite_code").eq("id", groupId).maybeSingle();
-
+  const { data, error } = await supabase.from("household_groups").select("invite_code").eq("id", value(formData, "householdGroupId")).maybeSingle();
   if (error) redirect(`/settings?inviteError=${encodeURIComponent(error.message)}`);
   revalidatePath("/settings");
   redirect(`/settings?invite=${encodeURIComponent(String(data?.invite_code ?? ""))}`);
@@ -137,16 +102,11 @@ export async function createInvitation(formData: FormData) {
 
 export async function joinInvitation(formData: FormData) {
   const { supabase, user } = await requireUser();
-  const code = normalizeInviteCode(value(formData, "code"));
-  const displayName = value(formData, "displayName") || user.email || "パートナー";
-  const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
-
   const { error } = await supabase.rpc("join_household_by_invite_code", {
-    code,
-    display_name: displayName,
-    share_ratio_value: shareRatio
+    code: normalizeInviteCode(value(formData, "code")),
+    display_name: value(formData, "displayName") || user.email || "パートナー",
+    share_ratio_value: Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100))
   });
-
   if (error) redirect(`/setup?joinError=${encodeURIComponent(inviteErrorMessage(error.message))}`);
   redirect("/");
 }
@@ -154,10 +114,8 @@ export async function joinInvitation(formData: FormData) {
 export async function closeCurrentMonth(formData: FormData) {
   const { supabase } = await requireUser();
   const householdGroupId = value(formData, "householdGroupId");
-  const memo = value(formData, "memo");
   const data = await getBudgetData();
   const summary = createCurrentMonthlySummary(data);
-
   if (!householdGroupId) redirect("/reports?error=家計グループを確認できませんでした");
 
   const { error } = await supabase.from("monthly_summaries").upsert(
@@ -172,12 +130,11 @@ export async function closeCurrentMonth(formData: FormData) {
       remaining_budget: Math.round(summary.remainingBudget),
       landing_result: Math.round(summary.landingResult),
       category_expenses: summary.categoryExpenses,
-      memo,
+      memo: value(formData, "memo"),
       closed_at: new Date().toISOString()
     },
     { onConflict: "household_group_id,target_month" }
   );
-
   if (error) redirect(`/reports?error=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
@@ -186,11 +143,8 @@ export async function ensurePreviousMonthSnapshot() {
   const { supabase } = await requireUser();
   const data = await getBudgetData();
   if (!data.householdGroupId) return;
-
   const previousMonthKey = shiftMonthKey(getCurrentMonthPeriodJST().monthKey, -1);
-  const exists = data.monthlySummaries.some((summary) => summary.month === previousMonthKey);
-  if (exists) return;
-
+  if (data.monthlySummaries.some((summary) => summary.month === previousMonthKey)) return;
   const summary = createCurrentMonthlySummary(data, getReferenceDateFromMonthKey(previousMonthKey));
   const { error } = await supabase.from("monthly_summaries").upsert(
     {
@@ -209,7 +163,6 @@ export async function ensurePreviousMonthSnapshot() {
     },
     { onConflict: "household_group_id,target_month" }
   );
-
   if (!error) revalidateCore();
 }
 
@@ -217,16 +170,14 @@ export async function updateHouseholdSettings(formData: FormData) {
   const { supabase } = await requireUser();
   const householdGroupId = value(formData, "householdGroupId");
   const groupName = value(formData, "groupName");
-  const iconUrl = value(formData, "iconUrl");
   const burdenRule = value(formData, "burdenRule") || "fifty_fifty";
-
   if (!householdGroupId || !groupName) redirect("/settings?settingsError=家計グループ名を入力してください");
 
   const { error } = await supabase
     .from("household_groups")
     .update({
       name: groupName,
-      icon_url: iconUrl || null,
+      icon_url: value(formData, "iconUrl") || null,
       burden_rule: ["fifty_fifty", "custom", "income_ratio"].includes(burdenRule) ? burdenRule : "fifty_fifty",
       save_receipt_images: checked(formData, "saveReceiptImages"),
       home_widgets: {
@@ -239,7 +190,6 @@ export async function updateHouseholdSettings(formData: FormData) {
       }
     })
     .eq("id", householdGroupId);
-
   if (error) redirect(`/settings?settingsError=${encodeURIComponent(error.message)}`);
   revalidateCore();
   redirect("/settings?saved=household");
@@ -249,28 +199,48 @@ export async function updateHouseholdMember(formData: FormData) {
   const { supabase } = await requireUser();
   const id = value(formData, "id");
   const displayName = value(formData, "displayName");
-  const role = value(formData, "role") === "owner" ? "owner" : "member";
-  const shareRatio = Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100));
-
   if (!id || !displayName) redirect("/settings?memberError=表示名を入力してください");
-
   const { error } = await supabase
     .from("household_members")
-    .update({ display_name: displayName, custom_share_ratio: shareRatio, role })
+    .update({
+      display_name: displayName,
+      custom_share_ratio: Math.min(1, Math.max(0, numberValue(formData, "shareRatio", 50) / 100)),
+      role: value(formData, "role") === "owner" ? "owner" : "member"
+    })
     .eq("id", id);
-
   if (error) redirect(`/settings?memberError=${encodeURIComponent(error.message)}`);
   revalidateCore();
   redirect("/settings?saved=member");
+}
+
+export async function saveCommonPaymentMethod(formData: FormData) {
+  const { supabase } = await requireUser();
+  const id = value(formData, "id");
+  const householdGroupId = value(formData, "householdGroupId");
+  const name = value(formData, "name");
+  if (!householdGroupId || !name) redirect("/settings?settingsError=支払い方法名を入力してください");
+  const payload = {
+    household_group_id: householdGroupId,
+    type: value(formData, "type") || "shared_credit_card",
+    name,
+    closing_day: value(formData, "closingDay") ? numberValue(formData, "closingDay") : null,
+    withdrawal_day: value(formData, "withdrawalDay") ? numberValue(formData, "withdrawalDay") : null,
+    withdrawal_account: value(formData, "withdrawalAccount") || null,
+    archived: checked(formData, "archived")
+  };
+  const { error } = id
+    ? await supabase.from("common_payment_methods").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
+    : await supabase.from("common_payment_methods").insert(payload);
+  if (error) redirect(`/settings?settingsError=${encodeURIComponent(error.message)}`);
+  revalidateCore();
+  redirect("/settings?saved=household");
 }
 
 export async function createSharedWalletTransaction(formData: FormData) {
   const { supabase } = await requireUser();
   const householdGroupId = value(formData, "householdGroupId");
   const amount = numberValue(formData, "amount");
-
   if (!householdGroupId || !amount) redirect("/?error=共通財布の金額を入力してください");
-
   const { error } = await supabase.from("shared_wallet_transactions").insert({
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
@@ -279,7 +249,6 @@ export async function createSharedWalletTransaction(formData: FormData) {
     occurred_on: value(formData, "occurredOn") || getTodayJSTDateString(),
     memo: value(formData, "memo")
   });
-
   if (error) redirect(`/?error=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
@@ -290,12 +259,10 @@ export async function createExpense(formData: FormData) {
   const amount = numberValue(formData, "amount");
   const householdGroupId = value(formData, "householdGroupId");
   const categoryId = value(formData, "categoryId");
+  if (!amount || !categoryId || !householdGroupId) redirect("/expenses?error=支出の金額とカテゴリを入力してください");
 
-  if (!amount || !categoryId || !householdGroupId) {
-    redirect("/expenses?error=支出の金額とカテゴリを入力してください");
-  }
-
-  const isSharedWallet = value(formData, "paidByType") === "shared_wallet";
+  const paymentMethodType = value(formData, "paymentMethodType") || value(formData, "paidByType") || "personal";
+  const isSharedWallet = paymentMethodType === "shared_wallet";
   const payload = {
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
@@ -303,9 +270,11 @@ export async function createExpense(formData: FormData) {
     spent_on: value(formData, "date") || getTodayJSTDateString(),
     category: "other",
     category_id: categoryId,
-    payer_name: value(formData, "payer") || "共通財布",
+    payer_name: value(formData, "payer") || (paymentMethodType === "personal" ? "" : "共通"),
     paid_by_type: isSharedWallet ? "shared_wallet" : "member",
     paid_by_user_id: isSharedWallet ? null : value(formData, "paidByUserId") || null,
+    payment_method_type: paymentMethodType,
+    payment_method_id: value(formData, "paymentMethodId") || null,
     target: value(formData, "target") || "shared",
     location: value(formData, "location") || null,
     memo: value(formData, "memo"),
@@ -313,11 +282,9 @@ export async function createExpense(formData: FormData) {
     receipt_ocr_text: value(formData, "receiptOcrText") || null,
     receipt_confidence: value(formData, "receiptConfidence") ? numberValue(formData, "receiptConfidence") : null
   };
-
   const { error } = id
     ? await supabase.from("expenses").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
     : await supabase.from("expenses").insert(payload);
-
   if (error) redirect(`/expenses?error=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
@@ -328,9 +295,7 @@ export async function createIncome(formData: FormData) {
   const householdGroupId = value(formData, "householdGroupId");
   const name = value(formData, "name");
   const amount = numberValue(formData, "amount");
-
   if (!householdGroupId || !name || !amount) redirect("/incomes?error=収入名と金額を入力してください");
-
   const payload = {
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
@@ -342,11 +307,7 @@ export async function createIncome(formData: FormData) {
     category_id: value(formData, "categoryId") || null,
     recurring: value(formData, "recurring") !== "false"
   };
-
-  const { error } = id
-    ? await supabase.from("incomes").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
-    : await supabase.from("incomes").insert(payload);
-
+  const { error } = id ? await supabase.from("incomes").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("incomes").insert(payload);
   if (error) redirect(`/incomes?error=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
@@ -357,22 +318,9 @@ export async function createSaving(formData: FormData) {
   const householdGroupId = value(formData, "householdGroupId");
   const name = value(formData, "name");
   const amount = numberValue(formData, "amount");
-
   if (!householdGroupId || !name || !amount) redirect("/savings?error=名称と金額を入力してください");
-
-  const payload = {
-    household_group_id: householdGroupId,
-    name,
-    amount,
-    saving_type: "other",
-    category_id: value(formData, "categoryId") || null,
-    recurring: value(formData, "recurring") !== "false"
-  };
-
-  const { error } = id
-    ? await supabase.from("savings").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
-    : await supabase.from("savings").insert(payload);
-
+  const payload = { household_group_id: householdGroupId, name, amount, saving_type: "other", category_id: value(formData, "categoryId") || null, recurring: value(formData, "recurring") !== "false" };
+  const { error } = id ? await supabase.from("savings").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("savings").insert(payload);
   if (error) redirect(`/savings?error=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
@@ -383,9 +331,7 @@ export async function createFixedCost(formData: FormData) {
   const householdGroupId = value(formData, "householdGroupId");
   const name = value(formData, "name");
   const amount = numberValue(formData, "amount");
-
   if (!householdGroupId || !name || !amount) redirect("/fixed-costs?error=固定費名と金額を入力してください");
-
   const payload = {
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
@@ -399,11 +345,7 @@ export async function createFixedCost(formData: FormData) {
     review_target: checked(formData, "reviewTarget"),
     review_memo: value(formData, "reviewMemo")
   };
-
-  const { error } = id
-    ? await supabase.from("fixed_costs").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
-    : await supabase.from("fixed_costs").insert(payload);
-
+  const { error } = id ? await supabase.from("fixed_costs").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("fixed_costs").insert(payload);
   if (error) redirect(`/fixed-costs?error=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
@@ -414,9 +356,7 @@ export async function createLoan(formData: FormData) {
   const householdGroupId = value(formData, "householdGroupId");
   const name = value(formData, "name");
   const monthlyPayment = numberValue(formData, "monthlyPayment");
-
   if (!householdGroupId || !name || !monthlyPayment) redirect("/loans?error=ローン名と毎月返済額を入力してください");
-
   const payload = {
     household_group_id: householdGroupId,
     name,
@@ -428,11 +368,7 @@ export async function createLoan(formData: FormData) {
     has_bonus_payment: value(formData, "hasBonusPayment") === "true",
     memo: value(formData, "memo")
   };
-
-  const { error } = id
-    ? await supabase.from("loans").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
-    : await supabase.from("loans").insert(payload);
-
+  const { error } = id ? await supabase.from("loans").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("loans").insert(payload);
   if (error) redirect(`/loans?error=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
@@ -452,21 +388,15 @@ export async function saveCategory(formData: FormData) {
     favorite: checked(formData, "favorite"),
     sort_order: numberValue(formData, "sortOrder", 1)
   };
-
   if (!payload.name || !householdGroupId) redirect("/settings?categoryError=カテゴリ名を入力してください");
-
-  const { error } = id
-    ? await supabase.from("categories").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
-    : await supabase.from("categories").insert(payload);
-
+  const { error } = id ? await supabase.from("categories").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("categories").insert(payload);
   if (error) redirect(`/settings?categoryError=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }
 
 export async function archiveCategory(formData: FormData) {
   const { supabase } = await requireUser();
-  const id = value(formData, "id");
-  const { error } = await supabase.from("categories").update({ archived: true }).eq("id", id);
+  const { error } = await supabase.from("categories").update({ archived: true }).eq("id", value(formData, "id"));
   if (error) redirect(`/settings?categoryError=${encodeURIComponent(error.message)}`);
   revalidateCore();
 }

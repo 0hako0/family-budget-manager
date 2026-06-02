@@ -269,6 +269,8 @@ create table if not exists public.expenses (
   payer_name text not null,
   paid_by_type text not null default 'member' check (paid_by_type in ('member', 'shared_wallet')),
   paid_by_user_id uuid references auth.users(id) on delete set null,
+  payment_method_type text not null default 'personal' check (payment_method_type in ('personal', 'shared_wallet', 'shared_credit_card', 'household_account')),
+  payment_method_id uuid,
   target text not null default 'shared' check (target in ('shared', 'self_only', 'partner_only')),
   share_rule text not null default 'group_default' check (share_rule in ('group_default', 'fifty_fifty', 'custom', 'income_ratio')),
   payer_share_ratio numeric(5, 4),
@@ -281,6 +283,24 @@ create table if not exists public.expenses (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.common_payment_methods (
+  id uuid primary key default gen_random_uuid(),
+  household_group_id uuid not null references public.household_groups(id) on delete cascade,
+  type text not null default 'shared_credit_card' check (type in ('shared_wallet', 'shared_credit_card', 'household_account')),
+  name text not null,
+  closing_day integer check (closing_day between 1 and 31),
+  withdrawal_day integer check (withdrawal_day between 1 and 31),
+  withdrawal_account text,
+  archived boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.expenses add column if not exists payment_method_type text not null default 'personal' check (payment_method_type in ('personal', 'shared_wallet', 'shared_credit_card', 'household_account'));
+alter table public.expenses add column if not exists payment_method_id uuid references public.common_payment_methods(id) on delete set null;
+alter table public.expenses drop constraint if exists expenses_payment_method_id_fkey;
+alter table public.expenses add constraint expenses_payment_method_id_fkey foreign key (payment_method_id) references public.common_payment_methods(id) on delete set null;
 
 create table if not exists public.monthly_summaries (
   id uuid primary key default gen_random_uuid(),
@@ -324,6 +344,7 @@ alter table public.savings enable row level security;
 alter table public.fixed_costs enable row level security;
 alter table public.loans enable row level security;
 alter table public.expenses enable row level security;
+alter table public.common_payment_methods enable row level security;
 alter table public.monthly_summaries enable row level security;
 alter table public.shared_wallet_transactions enable row level security;
 
@@ -557,7 +578,7 @@ do $$
 declare
   table_name text;
 begin
-  foreach table_name in array array['category_budgets', 'incomes', 'savings', 'fixed_costs', 'loans', 'expenses', 'monthly_summaries', 'shared_wallet_transactions']
+  foreach table_name in array array['category_budgets', 'incomes', 'savings', 'fixed_costs', 'loans', 'expenses', 'common_payment_methods', 'monthly_summaries', 'shared_wallet_transactions']
   loop
     execute format('drop policy if exists "household data select" on public.%I', table_name);
     execute format('create policy "household data select" on public.%I for select to authenticated using (public.is_household_member(household_group_id))', table_name);
@@ -579,6 +600,8 @@ create index if not exists idx_savings_household_group_id on public.savings(hous
 create index if not exists idx_fixed_costs_household_group_id on public.fixed_costs(household_group_id);
 create index if not exists idx_loans_household_group_id on public.loans(household_group_id);
 create index if not exists idx_expenses_household_group_id_spent_on on public.expenses(household_group_id, spent_on);
+create index if not exists idx_expenses_payment_method_id on public.expenses(payment_method_id);
+create index if not exists idx_common_payment_methods_household_group_id on public.common_payment_methods(household_group_id, type);
 create index if not exists idx_monthly_summaries_household_group_id on public.monthly_summaries(household_group_id);
 create index if not exists idx_shared_wallet_transactions_household_group_id on public.shared_wallet_transactions(household_group_id, occurred_on);
 
@@ -604,6 +627,8 @@ drop trigger if exists set_loans_updated_at on public.loans;
 create trigger set_loans_updated_at before update on public.loans for each row execute function public.set_updated_at();
 drop trigger if exists set_expenses_updated_at on public.expenses;
 create trigger set_expenses_updated_at before update on public.expenses for each row execute function public.set_updated_at();
+drop trigger if exists set_common_payment_methods_updated_at on public.common_payment_methods;
+create trigger set_common_payment_methods_updated_at before update on public.common_payment_methods for each row execute function public.set_updated_at();
 drop trigger if exists set_monthly_summaries_updated_at on public.monthly_summaries;
 create trigger set_monthly_summaries_updated_at before update on public.monthly_summaries for each row execute function public.set_updated_at();
 drop trigger if exists set_shared_wallet_transactions_updated_at on public.shared_wallet_transactions;

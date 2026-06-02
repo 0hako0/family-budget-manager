@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { closeCurrentMonth, createExpense, deleteExpense } from "@/app/actions";
+import { closeCurrentMonth } from "@/app/actions";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { CategoryPieChart, MonthlyTrendChart, RatioBarChart } from "@/components/Charts";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import {
   getCalendarDaySummaries,
   getCategory,
-  getCategoriesByKind,
   getMonthScopedData,
   getMonthlyCategoryBudgetProgress,
   getMonthlyComparison,
+  getMonthlyPaymentMethodBreakdown,
   getMonthlyTrend,
+  getPaymentMethodLabel,
   getTotals,
   groupExpensesByCategory
 } from "@/lib/budget";
@@ -47,12 +48,9 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
   const totals = useMemo(() => getTotals(data, referenceDate), [data, referenceDate]);
   const comparison = useMemo(() => getMonthlyComparison(data, target, referenceDate), [data, target, referenceDate]);
   const categoryBudgetItems = useMemo(() => getMonthlyCategoryBudgetProgress(data, referenceDate), [data, referenceDate]);
+  const paymentBreakdown = useMemo(() => getMonthlyPaymentMethodBreakdown(data, referenceDate), [data, referenceDate]);
   const categoryData = useMemo(
-    () =>
-      groupExpensesByCategory(scopedData.expenses).map((item) => ({
-        name: getCategory(data, item.categoryId)?.name ?? "未分類",
-        value: item.value
-      })),
+    () => groupExpensesByCategory(scopedData.expenses).map((item) => ({ name: getCategory(data, item.categoryId)?.name ?? "未分類", value: item.value })),
     [data, scopedData.expenses]
   );
   const ratioData = useMemo(
@@ -69,46 +67,31 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
     <div className="grid gap-5">
       <section>
         <h1 className="text-xl font-black text-ink">レポート</h1>
-        <p className="mt-1 text-sm text-ink/60">家計の予算消化と月次比較を確認します。</p>
+        <p className="mt-1 text-sm text-ink/60">家計の予算消化、月次比較、支払い方法別の内訳を確認します。</p>
       </section>
 
       <section className="rounded-[18px] bg-white p-3 shadow-sm">
         <div className="flex items-center justify-between gap-2">
-          <button className="min-h-11 rounded-2xl bg-cream px-4 text-sm font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, -1))}>
-            前月
-          </button>
+          <button className="min-h-11 rounded-2xl bg-cream px-4 text-sm font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, -1))}>前月</button>
           <div className="text-center">
             <p className="text-base font-black text-ink">{period.monthLabel}</p>
-            <p className="text-[11px] font-bold text-ink/45">
-              {period.startLabel}〜{period.endLabel}
-            </p>
+            <p className="text-[11px] font-bold text-ink/45">{period.startLabel}〜{period.endLabel}</p>
           </div>
-          <button className="min-h-11 rounded-2xl bg-cream px-4 text-sm font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, 1))}>
-            次月
-          </button>
+          <button className="min-h-11 rounded-2xl bg-cream px-4 text-sm font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, 1))}>次月</button>
         </div>
-        <button className="mt-2 min-h-10 w-full rounded-2xl border border-leaf/20 text-sm font-black text-leaf transition active:scale-[0.98]" type="button" onClick={() => setMonthKey(currentPeriod.monthKey)}>
-          今月に戻る
-        </button>
-        <p className="mt-2 text-center text-[11px] font-bold text-ink/35">
-          currentPeriod: {period.startDate} to {period.endDate}
-        </p>
+        <button className="mt-2 min-h-10 w-full rounded-2xl border border-leaf/20 text-sm font-black text-leaf transition active:scale-[0.98]" type="button" onClick={() => setMonthKey(currentPeriod.monthKey)}>今月に戻る</button>
       </section>
 
       <div className="grid grid-cols-5 gap-1 rounded-2xl bg-white p-1 shadow-sm">
         {tabs.map((item) => (
-          <button key={item} className={tab === item ? "min-h-11 rounded-xl bg-leaf text-[11px] font-black text-white" : "min-h-11 rounded-xl text-[11px] font-bold text-ink/60"} type="button" onClick={() => setTab(item)}>
-            {item}
-          </button>
+          <button key={item} className={tab === item ? "min-h-11 rounded-xl bg-leaf text-[11px] font-black text-white" : "min-h-11 rounded-xl text-[11px] font-bold text-ink/60"} type="button" onClick={() => setTab(item)}>{item}</button>
         ))}
       </div>
 
       {tab === "カテゴリ別" ? (
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
           <h2 className="text-base font-black text-ink">カテゴリ予算</h2>
-          <div className="mt-3">
-            <CategoryBudgetList items={categoryBudgetItems} />
-          </div>
+          <div className="mt-3"><CategoryBudgetList items={categoryBudgetItems} /></div>
           {categoryData.length > 0 ? <CategoryPieChart data={categoryData} /> : <p className="mt-4 rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">この月の支出はまだありません</p>}
         </section>
       ) : null}
@@ -127,8 +110,18 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
             <MetricCard label="変動費比率" value={percent(totals.variableExpenseRate)} />
             <MetricCard label="貯金・投資率" value={percent(totals.savingRate)} tone="accent" />
           </div>
+          <section className="rounded-[22px] bg-white p-4 shadow-sm"><RatioBarChart data={ratioData} /></section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
-            <RatioBarChart data={ratioData} />
+            <h2 className="text-base font-black text-ink">支払い方法別</h2>
+            {paymentBreakdown.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだ支出がありません</p> : null}
+            <div className="mt-3 grid gap-2">
+              {paymentBreakdown.map((row) => (
+                <div key={row.id} className="flex items-center justify-between rounded-2xl bg-cream/60 px-3 py-3 text-sm">
+                  <span className="font-bold text-ink">{row.label}</span>
+                  <strong className="text-leaf">{yen(row.amount)}</strong>
+                </div>
+              ))}
+            </div>
           </section>
         </section>
       ) : null}
@@ -136,18 +129,12 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
       {tab === "年比較" ? (
         <section className="grid gap-4">
           <div className="grid grid-cols-2 gap-2">
-            {compareTargets.map((item) => (
-              <button key={item.value} className={target === item.value ? "min-h-11 rounded-2xl bg-leaf text-sm font-black text-white" : "min-h-11 rounded-2xl bg-white text-sm font-bold text-ink"} type="button" onClick={() => setTarget(item.value)}>
-                {item.label}
-              </button>
-            ))}
+            {compareTargets.map((item) => <button key={item.value} className={target === item.value ? "min-h-11 rounded-2xl bg-leaf text-sm font-black text-white" : "min-h-11 rounded-2xl bg-white text-sm font-bold text-ink"} type="button" onClick={() => setTarget(item.value)}>{item.label}</button>)}
           </div>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <p className="text-sm font-bold text-leaf">月締めプレビュー</p>
             <p className="mt-2 text-3xl font-black text-ink">{comparison.current.month}</p>
-            <p className="mt-1 text-sm text-ink/60">
-              残額 {yen(comparison.current.remainingBudget)} / 着地 {yen(comparison.current.landingResult)}
-            </p>
+            <p className="mt-1 text-sm text-ink/60">残額 {yen(comparison.current.remainingBudget)} / 着地 {yen(comparison.current.landingResult)}</p>
             <form action={closeCurrentMonth} className="mt-3 grid gap-3">
               <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
               <textarea className="min-h-20 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base outline-none transition focus:border-leaf" name="memo" placeholder="今月のメモ" />
@@ -156,20 +143,12 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <h2 className="text-base font-black text-ink">比較</h2>
-            <div className="mt-3 grid gap-2">
-              {comparison.rows.map((row) => (
-                <ComparisonRow key={row.label} label={row.label} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />
-              ))}
-            </div>
+            <div className="mt-3 grid gap-2">{comparison.rows.map((row) => <ComparisonRow key={row.label} label={row.label} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />)}</div>
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <h2 className="text-base font-black text-ink">カテゴリ別支出</h2>
             {visibleCategoryRows.length === 0 ? <p className="mt-3 text-sm font-bold text-ink/60">まだカテゴリ別支出がありません</p> : null}
-            <div className="mt-3 grid gap-2">
-              {visibleCategoryRows.map((row) => (
-                <ComparisonRow key={row.category.id} label={`${row.category.icon} ${row.category.name}`} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />
-              ))}
-            </div>
+            <div className="mt-3 grid gap-2">{visibleCategoryRows.map((row) => <ComparisonRow key={row.category.id} label={`${row.category.icon} ${row.category.name}`} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />)}</div>
           </section>
         </section>
       ) : null}
@@ -181,9 +160,6 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
 
 function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceDate: Date }) {
   const { period, cells } = useMemo(() => getCalendarDaySummaries(data, referenceDate), [data, referenceDate]);
-  const categories = useMemo(() => getCategoriesByKind(data, "expense"), [data]);
-  const budgetItems = useMemo(() => getMonthlyCategoryBudgetProgress(data, referenceDate), [data, referenceDate]);
-  const categoryRate = useMemo(() => new Map(budgetItems.map((item) => [item.category.id, item.rate])), [budgetItems]);
   const [selectedDate, setSelectedDate] = useState(period.startDate);
   useEffect(() => setSelectedDate(period.startDate), [period.startDate]);
   const selectedCell = cells.find((cell) => cell.date === selectedDate);
@@ -194,116 +170,37 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceD
     <section className="grid gap-4">
       <section className="rounded-[22px] bg-white p-4 shadow-sm">
         <h2 className="text-base font-black text-ink">支出カレンダー</h2>
-        <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-black text-ink/45">
-          {["日", "月", "火", "水", "木", "金", "土"].map((day) => <span key={day}>{day}</span>)}
-        </div>
+        <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-black text-ink/45">{["日", "月", "火", "水", "木", "金", "土"].map((day) => <span key={day}>{day}</span>)}</div>
         <div className="mt-2 grid grid-cols-7 gap-1">
-          {cells.map((cell, index) =>
-            cell.inMonth ? (
-              <button
-                key={cell.date}
-                type="button"
-                onClick={() => setSelectedDate(cell.date)}
-                className={
-                  selectedDate === cell.date
-                    ? "min-h-[62px] rounded-xl border-2 border-leaf bg-emerald-50 p-1 text-left transition active:scale-[0.98]"
-                    : cell.total / maxDailyTotal > 0.7
-                      ? "min-h-[62px] rounded-xl border border-warn/30 bg-red-50 p-1 text-left transition active:scale-[0.98]"
-                      : cell.total > 0
-                        ? "min-h-[62px] rounded-xl border border-emerald-900/10 bg-white p-1 text-left transition active:scale-[0.98]"
-                        : "min-h-[62px] rounded-xl bg-cream/45 p-1 text-left transition active:scale-[0.98]"
-                }
-              >
-                <span className="block text-xs font-black text-ink">{cell.day}</span>
-                {cell.total > 0 ? (
-                  <>
-                    <span className={cell.total / maxDailyTotal > 0.7 ? "mt-1 block text-[10px] font-black text-warn" : "mt-1 block text-[10px] font-black text-leaf"}>{yen(cell.total)}</span>
-                    <span className="mt-1 flex gap-0.5">
-                      {Array.from(new Set(cell.expenses.map((expense) => expense.categoryId))).slice(0, 3).map((categoryId) => {
-                        const category = getCategory(data, categoryId);
-                        const rate = categoryRate.get(categoryId) ?? 0;
-                        const outline = rate >= 1 ? "ring-1 ring-warn" : rate >= 0.8 ? "ring-1 ring-amber-400" : "";
-                        return <span key={categoryId} className={`h-1.5 w-1.5 rounded-full ${outline}`} style={{ backgroundColor: category?.color ?? "#2f8f6b" }} />;
-                      })}
-                      {new Set(cell.expenses.map((expense) => expense.categoryId)).size > 3 ? <span className="text-[9px] leading-none text-ink/45">+</span> : null}
-                    </span>
-                  </>
-                ) : null}
-              </button>
-            ) : (
-              <div key={`blank-${index}`} />
-            )
-          )}
+          {cells.map((cell, index) => cell.inMonth ? (
+            <button key={cell.date} type="button" onClick={() => setSelectedDate(cell.date)} className={selectedDate === cell.date ? "min-h-[62px] rounded-xl border-2 border-leaf bg-emerald-50 p-1 text-left transition active:scale-[0.98]" : cell.total / maxDailyTotal > 0.7 ? "min-h-[62px] rounded-xl border border-warn/30 bg-red-50 p-1 text-left transition active:scale-[0.98]" : cell.total > 0 ? "min-h-[62px] rounded-xl border border-emerald-900/10 bg-white p-1 text-left transition active:scale-[0.98]" : "min-h-[62px] rounded-xl bg-cream/45 p-1 text-left transition active:scale-[0.98]"}>
+              <span className="block text-xs font-black text-ink">{cell.day}</span>
+              {cell.total > 0 ? <span className={cell.total / maxDailyTotal > 0.7 ? "mt-1 block text-[10px] font-black text-warn" : "mt-1 block text-[10px] font-black text-leaf"}>{yen(cell.total)}</span> : null}
+            </button>
+          ) : <div key={`blank-${index}`} />)}
         </div>
       </section>
-
       <section className="rounded-[22px] bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-black text-ink">{selectedDate.replaceAll("-", "/")}</h3>
-          <p className="text-sm font-black text-leaf">合計 {yen(selectedCell?.total ?? 0)}</p>
-        </div>
+        <div className="flex items-center justify-between"><h3 className="text-base font-black text-ink">{selectedDate.replaceAll("-", "/")}</h3><p className="text-sm font-black text-leaf">合計 {yen(selectedCell?.total ?? 0)}</p></div>
         {selectedExpenses.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">この日の支出はありません</p> : null}
         <div className="mt-3 grid gap-3">
           {selectedExpenses.map((expense) => {
             const category = getCategory(data, expense.categoryId);
             return (
-              <details key={expense.id} className="rounded-2xl bg-cream/60 p-3">
-                <summary className="min-h-11 cursor-pointer list-none">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-ink">
-                        <span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: category?.color ?? "#2f8f6b" }} />
-                        {category?.icon} {category?.name ?? "未分類"}
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-ink/55">
-                        {expense.location || expense.memo || "場所・メモなし"} / {expense.payer || "支払者未設定"} / {targetLabels[expense.target]}
-                      </p>
-                    </div>
-                    <p className="shrink-0 text-sm font-black text-ink">{yen(expense.amount)}</p>
+              <article key={expense.id} className="rounded-2xl bg-cream/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-ink">{category?.icon} {category?.name ?? "未分類"}</p>
+                    <p className="mt-1 text-xs font-bold text-ink/55">{expense.location || expense.memo || "場所・メモなし"} / {expense.payer || "支払者未設定"} / {getPaymentMethodLabel(data, expense)} / {targetLabels[expense.target]}</p>
                   </div>
-                </summary>
-                <CalendarExpenseEdit data={data} expense={expense} categories={categories} />
-              </details>
+                  <p className="shrink-0 text-sm font-black text-ink">{yen(expense.amount)}</p>
+                </div>
+              </article>
             );
           })}
         </div>
       </section>
     </section>
-  );
-}
-
-function CalendarExpenseEdit({ data, expense, categories }: { data: BudgetData; expense: (typeof data.expenses)[number]; categories: ReturnType<typeof getCategoriesByKind> }) {
-  const isSharedWallet = expense.paidByType === "shared_wallet" || expense.payer === "共通財布";
-  return (
-    <div className="mt-3 grid gap-3 border-t border-emerald-900/10 pt-3">
-      <form action={createExpense} className="grid gap-2">
-        <input type="hidden" name="id" value={expense.id} />
-        <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
-        <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
-        <input className="mobile-input" name="amount" type="number" inputMode="numeric" defaultValue={expense.amount} />
-        <select className="mobile-input" name="categoryId" defaultValue={expense.categoryId}>
-          {categories.map((category) => <option key={category.id} value={category.id}>{category.icon} {category.name}</option>)}
-        </select>
-        <input className="mobile-input" name="date" type="date" defaultValue={expense.date} />
-        <select className="mobile-input" name="payer" defaultValue={isSharedWallet ? "共通財布" : expense.payer}>
-          <option value="">未選択</option>
-          {data.members.map((member) => <option key={member.id}>{member.name}</option>)}
-          <option value="共通財布">共通財布</option>
-        </select>
-        <input type="hidden" name="paidByType" value={isSharedWallet ? "shared_wallet" : "member"} />
-        <input type="hidden" name="paidByUserId" value={expense.paidByUserId ?? ""} />
-        <select className="mobile-input" name="target" defaultValue={expense.target}>
-          {Object.entries(targetLabels).map(([targetValue, label]) => <option key={targetValue} value={targetValue}>{label}</option>)}
-        </select>
-        <input className="mobile-input" name="location" defaultValue={expense.location ?? ""} placeholder="お店・場所" />
-        <input className="mobile-input" name="memo" defaultValue={expense.memo} placeholder="メモ" />
-        <FormSubmitButton idleLabel="保存する" pendingLabel="保存中..." />
-      </form>
-      <form action={deleteExpense} onSubmit={(event) => { if (!window.confirm("この支出を削除しますか？")) event.preventDefault(); }}>
-        <input type="hidden" name="id" value={expense.id} />
-        <FormSubmitButton idleLabel="削除する" pendingLabel="削除中..." className="min-h-12 w-full rounded-2xl bg-red-50 px-4 py-3 text-base font-black text-warn transition active:scale-[0.98] disabled:opacity-50" />
-      </form>
-    </div>
   );
 }
 

@@ -7,6 +7,7 @@ import type {
   ExpenseTarget,
   HomeWidgetSettings,
   HouseholdMember,
+  PaymentMethodType,
   SharedWalletTransactionType
 } from "./types";
 
@@ -38,6 +39,7 @@ export const emptyBudgetData: BudgetData = {
   fixedCosts: [],
   loans: [],
   expenses: [],
+  commonPaymentMethods: [],
   sharedWalletTransactions: [],
   monthlySummaries: [],
   notificationRules: []
@@ -71,6 +73,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     fixedCostsResult,
     loansResult,
     expensesResult,
+    paymentMethodsResult,
     walletResult,
     summariesResult
   ] = await Promise.all([
@@ -82,6 +85,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     supabase.from("fixed_costs").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
     supabase.from("loans").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
     supabase.from("expenses").select("*").eq("household_group_id", groupId).order("spent_on", { ascending: false }),
+    supabase.from("common_payment_methods").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
     supabase.from("shared_wallet_transactions").select("*").eq("household_group_id", groupId).order("occurred_on", { ascending: false }),
     supabase.from("monthly_summaries").select("*").eq("household_group_id", groupId).order("target_month", { ascending: false })
   ]);
@@ -166,12 +170,23 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       payer: String(expense.payer_name ?? ""),
       paidByType: expense.paid_by_type === "shared_wallet" ? "shared_wallet" : "member",
       paidByUserId: expense.paid_by_user_id ? String(expense.paid_by_user_id) : undefined,
+      paymentMethodType: mapPaymentMethodType(String(expense.payment_method_type ?? (expense.paid_by_type === "shared_wallet" ? "shared_wallet" : "personal"))),
+      paymentMethodId: expense.payment_method_id ? String(expense.payment_method_id) : undefined,
       target: mapExpenseTarget(String(expense.target ?? "shared")),
       location: expense.location ? String(expense.location) : "",
       memo: String(expense.memo ?? ""),
       receiptImageUrl: expense.receipt_image_url ? String(expense.receipt_image_url) : undefined,
       receiptOcrText: expense.receipt_ocr_text ? String(expense.receipt_ocr_text) : undefined,
       receiptConfidence: expense.receipt_confidence == null ? undefined : Number(expense.receipt_confidence)
+    })),
+    commonPaymentMethods: (paymentMethodsResult.data ?? []).map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      type: mapPaymentMethodType(String(row.type ?? "shared_credit_card")),
+      name: String(row.name ?? ""),
+      closingDay: row.closing_day == null ? undefined : Number(row.closing_day),
+      withdrawalDay: row.withdrawal_day == null ? undefined : Number(row.withdrawal_day),
+      withdrawalAccount: row.withdrawal_account ? String(row.withdrawal_account) : undefined,
+      archived: Boolean(row.archived)
     })),
     sharedWalletTransactions: (walletResult.data ?? []).map((row: Record<string, unknown>) => ({
       id: String(row.id),
@@ -215,6 +230,13 @@ function mapSharedWalletTransactionType(value: string): SharedWalletTransactionT
   if (value === "withdrawal") return "withdrawal";
   if (value === "adjustment") return "adjustment";
   return "deposit";
+}
+
+function mapPaymentMethodType(value: string): PaymentMethodType {
+  if (value === "shared_wallet") return "shared_wallet";
+  if (value === "shared_credit_card") return "shared_credit_card";
+  if (value === "household_account") return "household_account";
+  return "personal";
 }
 
 function mapHomeWidgets(value: unknown): HomeWidgetSettings {

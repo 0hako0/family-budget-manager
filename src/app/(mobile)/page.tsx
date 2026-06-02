@@ -12,6 +12,7 @@ import {
   getMonthlySharedWalletUsage,
   getNextIncome,
   getRemainingDays,
+  getSharedCreditCardSummary,
   getSharedWalletBalance,
   getTotals
 } from "@/lib/budget";
@@ -19,11 +20,7 @@ import { getBudgetData } from "@/lib/data";
 import { getCurrentMonthPeriodJST, getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
 
-export default async function Home({
-  searchParams
-}: {
-  searchParams?: { error?: string };
-}) {
+export default async function Home({ searchParams }: { searchParams?: { error?: string } }) {
   const data = await getBudgetData();
   const period = getCurrentMonthPeriodJST();
   const referenceDate = new Date();
@@ -38,6 +35,7 @@ export default async function Home({
   const payerBreakdown = getMonthlyPayerBreakdown(data, referenceDate);
   const sharedWalletBalance = getSharedWalletBalance(data);
   const sharedWalletUsage = getMonthlySharedWalletUsage(data, referenceDate);
+  const sharedCard = getSharedCreditCardSummary(data, referenceDate);
   const widgets = data.settings.homeWidgets;
 
   return (
@@ -47,9 +45,7 @@ export default async function Home({
 
       <section className="rounded-[22px] border border-leaf/20 bg-white p-5 shadow-soft">
         <p className="text-xs font-bold text-leaf">{period.monthLabel}</p>
-        <p className="mt-1 text-[11px] font-bold text-ink/45">
-          期間: {period.startLabel}〜{period.endLabel}
-        </p>
+        <p className="mt-1 text-[11px] font-bold text-ink/45">期間: {period.startLabel}〜{period.endLabel}</p>
         <p className="mt-3 text-sm font-bold text-ink/60">今月あと使える金額</p>
         <p className="mt-2 text-5xl font-black tracking-normal text-ink">{yen(totals.remainingBudget)}</p>
         <div className="mt-5 grid gap-3">
@@ -61,9 +57,7 @@ export default async function Home({
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
               <div className={`h-full rounded-full ${consumptionTone}`} style={{ width: `${Math.min(100, consumptionPercent)}%` }} />
             </div>
-            <p className="mt-2 text-xs text-ink/55">
-              使用済み: {yen(consumption.used)} / 今月の収入予定 {yen(consumption.plannedIncome)}
-            </p>
+            <p className="mt-2 text-xs text-ink/55">使用済み: {yen(consumption.used)} / 今月の収入予定 {yen(consumption.plannedIncome)}</p>
           </div>
           <div className="rounded-2xl bg-emerald-50 p-4">
             <p className="text-sm font-bold text-leaf">今日使える目安</p>
@@ -73,14 +67,8 @@ export default async function Home({
           {widgets.monthEnd ? (
             <div className={totals.budgetBasedLanding < 0 ? "rounded-2xl bg-red-50 p-4 text-warn" : "rounded-2xl bg-cream/70 p-4 text-leaf"}>
               <p className="text-sm font-bold">月末見込み</p>
-              <p className="mt-1 text-xl font-black">
-                {totals.budgetBasedLanding >= 0 ? "+" : ""}
-                {yen(totals.budgetBasedLanding)}
-              </p>
-              <p className="mt-1 text-xs text-ink/55">
-                現在ペースの場合 {totals.paceBasedLanding >= 0 ? "+" : ""}
-                {yen(totals.paceBasedLanding)}
-              </p>
+              <p className="mt-1 text-xl font-black">{totals.budgetBasedLanding >= 0 ? "+" : ""}{yen(totals.budgetBasedLanding)}</p>
+              <p className="mt-1 text-xs text-ink/55">現在ペースの場合 {totals.paceBasedLanding >= 0 ? "+" : ""}{yen(totals.paceBasedLanding)}</p>
               {totals.isEarlyMonthForecast ? <p className="mt-2 text-xs font-bold text-ink/60">月初は現在ペース予測が大きくブレます。予算ベースで表示しています。</p> : null}
             </div>
           ) : null}
@@ -99,18 +87,23 @@ export default async function Home({
 
       {widgets.sharedWallet ? (
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-black text-ink">共通財布</h2>
-              <p className="mt-1 text-xs font-bold text-ink/50">共同口座・家計用カードの残高メモ</p>
+          <h2 className="text-base font-black text-ink">共通支払い方法</h2>
+          <div className="mt-3 grid gap-3">
+            <div className="rounded-2xl bg-cream/60 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-ink">共通財布残高</span>
+                <strong className={sharedWalletBalance < 0 ? "text-warn" : "text-leaf"}>{yen(sharedWalletBalance)}</strong>
+              </div>
+              <p className="mt-1 text-xs font-bold text-ink/55">今月共通財布利用 {yen(sharedWalletUsage)}</p>
             </div>
-            <div className="text-right">
-              <p className="text-xs font-bold text-ink/50">残高</p>
-              <p className={sharedWalletBalance < 0 ? "text-xl font-black text-warn" : "text-xl font-black text-leaf"}>{yen(sharedWalletBalance)}</p>
+            <div className="rounded-2xl bg-emerald-50 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-ink">共通クレカ利用額</span>
+                <strong className="text-leaf">{yen(sharedCard.amount)}</strong>
+              </div>
+              <p className="mt-1 text-xs font-bold text-ink/55">次回引き落とし予定: {yen(sharedCard.nextWithdrawalAmount)} / 引き落とし日: {sharedCard.withdrawalDate}</p>
+              <p className="mt-1 text-xs font-bold text-ink/45">{sharedCard.cardName} / 口座: {sharedCard.withdrawalAccount}</p>
             </div>
-          </div>
-          <div className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink">
-            今月共通財布利用 <span className="float-right text-leaf">{yen(sharedWalletUsage)}</span>
           </div>
           <details className="mt-3">
             <summary className="min-h-11 cursor-pointer list-none rounded-2xl border border-leaf/20 px-4 py-3 text-center text-sm font-black text-leaf">共通財布に入金する</summary>
@@ -131,9 +124,7 @@ export default async function Home({
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-base font-black text-ink">カテゴリ予算</h2>
-            <Link href="/reports" prefetch className="text-sm font-bold text-leaf">
-              レポートへ
-            </Link>
+            <Link href="/reports" prefetch className="text-sm font-bold text-leaf">レポートへ</Link>
           </div>
           <CategoryBudgetList items={budgetUsage} compact />
         </section>
@@ -174,9 +165,7 @@ export default async function Home({
           <MetricCard label="ローン" value={yen(totals.loanTotal)} />
           <MetricCard label="貯金・投資" value={yen(totals.savingTotal)} tone="accent" />
         </section>
-        <p className="mt-3 text-[11px] font-bold text-ink/35">
-          currentPeriod: {period.startDate} to {period.endDate}
-        </p>
+        <p className="mt-3 text-[11px] font-bold text-ink/35">currentPeriod: {period.startDate} to {period.endDate}</p>
       </details>
     </div>
   );

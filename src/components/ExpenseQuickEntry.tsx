@@ -5,10 +5,10 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createExpense, deleteExpense } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
-import { calculateSharedBurden, getCategoriesByKind, getCategory, getMonthScopedData } from "@/lib/budget";
+import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePaymentMethodType, getMonthScopedData, getPaymentMethodLabel } from "@/lib/budget";
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
-import type { BudgetData, Expense, ExpenseTarget, PaidByType } from "@/lib/types";
+import type { BudgetData, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
 import { MobileCard, MobileCards } from "./MobileCards";
@@ -30,33 +30,18 @@ function DeleteExpenseButton() {
 
 function ExpenseDeleteForm({ id }: { id: string }) {
   return (
-    <form
-      action={deleteExpense}
-      onSubmit={(event) => {
-        if (!window.confirm("この支出を削除しますか？")) event.preventDefault();
-      }}
-    >
+    <form action={deleteExpense} onSubmit={(event) => { if (!window.confirm("この支出を削除しますか？")) event.preventDefault(); }}>
       <input type="hidden" name="id" value={id} />
       <DeleteExpenseButton />
     </form>
   );
 }
 
-function ExpenseEditForm({
-  data,
-  expense,
-  categories,
-  onCancel
-}: {
-  data: BudgetData;
-  expense: Expense;
-  categories: ReturnType<typeof getCategoriesByKind>;
-  onCancel: () => void;
-}) {
-  const isInitialSharedWallet = expense.paidByType === "shared_wallet" || expense.payer === "共通財布";
+function ExpenseEditForm({ data, expense, categories, onCancel }: { data: BudgetData; expense: Expense; categories: ReturnType<typeof getCategoriesByKind>; onCancel: () => void }) {
+  const initialPaymentType = getExpensePaymentMethodType(expense);
   const [categoryId, setCategoryId] = useState(expense.categoryId);
-  const [payer, setPayer] = useState(isInitialSharedWallet ? "共通財布" : expense.payer);
-  const [paidByType, setPaidByType] = useState<PaidByType>(isInitialSharedWallet ? "shared_wallet" : "member");
+  const [payer, setPayer] = useState(expense.payer);
+  const [paymentMethodValue, setPaymentMethodValue] = useState(`${initialPaymentType}:${expense.paymentMethodId ?? ""}`);
   const [error, setError] = useState("");
 
   return (
@@ -76,49 +61,23 @@ function ExpenseEditForm({
       <input type="hidden" name="id" value={expense.id} />
       <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
       <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
-      <Field label="金額">
-        <input name="amount" type="number" inputMode="numeric" defaultValue={expense.amount} className="mobile-input" />
-      </Field>
+      <Field label="金額"><input name="amount" type="number" inputMode="numeric" defaultValue={expense.amount} className="mobile-input" /></Field>
       <Field label="カテゴリ">
         <select name="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="mobile-input">
           <option value="">選択してください</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.icon} {category.name}
-            </option>
-          ))}
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.icon} {category.name}</option>)}
         </select>
       </Field>
-      <Field label="日付">
-        <input name="date" type="date" defaultValue={expense.date || getTodayJSTDateString()} className="mobile-input" />
-      </Field>
-      <Field label="支払者">
-        <PayerSelect
-          data={data}
-          value={payer}
-          onChange={(next) => {
-            setPayer(next);
-            setPaidByType(next === "共通財布" ? "shared_wallet" : "member");
-          }}
-        />
-        <input type="hidden" name="paidByType" value={paidByType} />
-        <input type="hidden" name="paidByUserId" value={paidByType === "member" ? data.members.find((member) => member.name === payer)?.userId ?? "" : ""} />
-      </Field>
+      <Field label="日付"><input name="date" type="date" defaultValue={expense.date || getTodayJSTDateString()} className="mobile-input" /></Field>
+      <Field label="支払者"><PayerSelect data={data} value={payer} onChange={setPayer} /></Field>
+      <PaymentMethodFields data={data} value={paymentMethodValue} onChange={setPaymentMethodValue} />
       <Field label="対象">
         <select name="target" defaultValue={expense.target} className="mobile-input">
-          {Object.entries(targetLabels).map(([targetValue, label]) => (
-            <option key={targetValue} value={targetValue}>
-              {label}
-            </option>
-          ))}
+          {Object.entries(targetLabels).map(([targetValue, label]) => <option key={targetValue} value={targetValue}>{label}</option>)}
         </select>
       </Field>
-      <Field label="お店・場所">
-        <input name="location" defaultValue={expense.location ?? ""} className="mobile-input" placeholder="スーパー、Amazon など" />
-      </Field>
-      <Field label="メモ">
-        <input name="memo" defaultValue={expense.memo} className="mobile-input" placeholder="週末まとめ買い など" />
-      </Field>
+      <Field label="お店・場所"><input name="location" defaultValue={expense.location ?? ""} className="mobile-input" placeholder="スーパー、Amazon など" /></Field>
+      <Field label="メモ"><input name="memo" defaultValue={expense.memo} className="mobile-input" placeholder="週末まとめ買い など" /></Field>
       {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{error}</p> : null}
       <div className="grid grid-cols-2 gap-2">
         <button className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base font-black text-ink transition active:scale-[0.98]" type="button" onClick={onCancel}>
@@ -136,8 +95,8 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [date, setDate] = useState(getTodayJSTDateString());
-  const [payer, setPayer] = useState(data.members[0]?.name ?? "");
-  const [paidByType, setPaidByType] = useState<PaidByType>("member");
+  const [payer, setPayer] = useState(data.members[0]?.name ?? "共通");
+  const [paymentMethodValue, setPaymentMethodValue] = useState("personal:");
   const [target, setTarget] = useState<ExpenseTarget>("shared");
   const [location, setLocation] = useState("");
   const [memo, setMemo] = useState("");
@@ -209,11 +168,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 return (
                   <button
                     key={category.id}
-                    className={
-                      selected
-                        ? "min-h-16 rounded-2xl border-2 border-leaf bg-emerald-50 px-2 py-2 text-center text-xs font-black text-leaf transition active:scale-[0.98]"
-                        : "min-h-16 rounded-2xl border border-emerald-900/10 bg-cream/60 px-2 py-2 text-center text-xs font-bold text-ink transition active:scale-[0.98]"
-                    }
+                    className={selected ? "min-h-16 rounded-2xl border-2 border-leaf bg-emerald-50 px-2 py-2 text-center text-xs font-black text-leaf transition active:scale-[0.98]" : "min-h-16 rounded-2xl border border-emerald-900/10 bg-cream/60 px-2 py-2 text-center text-xs font-bold text-ink transition active:scale-[0.98]"}
                     type="button"
                     onClick={() => {
                       setCategoryId(category.id);
@@ -230,87 +185,39 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         </div>
 
         <Field label="カテゴリ" className="mt-4">
-          <select
-            className="mobile-input"
-            name="categoryId"
-            value={categoryId}
-            onChange={(event) => {
-              setCategoryId(event.target.value);
-              setError("");
-            }}
-          >
+          <select className="mobile-input" name="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
             <option value="">選択してください</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.icon} {category.name}
-              </option>
-            ))}
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.icon} {category.name}</option>)}
           </select>
         </Field>
 
         <details className="mt-3 rounded-2xl bg-cream/55 p-3">
-          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">日付・支払者・場所・メモ</summary>
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">日付・支払者・支払い方法・メモ</summary>
           <div className="grid gap-3 pt-2">
-            <Field label="日付">
-              <input className="mobile-input" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            </Field>
-            <Field label="支払者">
-              <PayerSelect
-                data={data}
-                value={paidByType === "shared_wallet" ? "共通財布" : payer}
-                onChange={(next) => {
-                  if (next === "共通財布") {
-                    setPaidByType("shared_wallet");
-                    setPayer("共通財布");
-                    setTarget("shared");
-                  } else {
-                    setPaidByType("member");
-                    setPayer(next);
-                  }
-                }}
-              />
-              <input type="hidden" name="paidByType" value={paidByType} />
-              <input type="hidden" name="paidByUserId" value={paidByType === "member" ? data.members.find((member) => member.name === payer)?.userId ?? "" : ""} />
-            </Field>
+            <Field label="日付"><input className="mobile-input" name="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field>
+            <Field label="支払者"><PayerSelect data={data} value={payer} onChange={setPayer} /></Field>
+            <PaymentMethodFields data={data} value={paymentMethodValue} onChange={setPaymentMethodValue} />
             <Field label="対象">
               <select className="mobile-input" name="target" value={target} onChange={(event) => setTarget(event.target.value as ExpenseTarget)}>
-                {Object.entries(targetLabels).map(([targetValue, label]) => (
-                  <option key={targetValue} value={targetValue}>
-                    {label}
-                  </option>
-                ))}
+                {Object.entries(targetLabels).map(([targetValue, label]) => <option key={targetValue} value={targetValue}>{label}</option>)}
               </select>
             </Field>
-            <Field label="お店・場所">
-              <input className="mobile-input" name="location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="イオン、Amazon など" />
-            </Field>
-            <Field label="メモ">
-              <input className="mobile-input" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="週末まとめ買い など" />
-            </Field>
+            <Field label="お店・場所"><input className="mobile-input" name="location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="イオン、Amazon など" /></Field>
+            <Field label="メモ"><input className="mobile-input" name="memo" value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="週末まとめ買い など" /></Field>
           </div>
         </details>
 
         <details className="mt-3 rounded-2xl bg-cream/55 p-3">
           <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシートを撮影・読み取る</summary>
           <div className="grid gap-3 pt-2">
-            <input
-              className="mobile-input"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                setReceiptPreview(file ? URL.createObjectURL(file) : "");
-                setOcrMessage("");
-              }}
-            />
+            <input className="mobile-input" type="file" accept="image/*" capture="environment" onChange={(event) => {
+              const file = event.target.files?.[0];
+              setReceiptPreview(file ? URL.createObjectURL(file) : "");
+              setOcrMessage("");
+            }} />
             {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for an unsaved local receipt image */}
             {receiptPreview ? <img src={receiptPreview} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
-            <button
-              className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 py-3 text-sm font-black text-leaf transition active:scale-[0.98]"
-              type="button"
-              onClick={() => setOcrMessage("OCRは次フェーズの確認画面付き実装として残しています。読み取り結果は必ず確認してから登録する設計です。")}
-            >
+            <button className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 py-3 text-sm font-black text-leaf transition active:scale-[0.98]" type="button" onClick={() => setOcrMessage("OCRは次フェーズの確認画面付き実装として残しています。読み取り結果は必ず確認してから登録する設計です。")}>
               写真から読み取る
             </button>
             {ocrMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-ink/70">{ocrMessage}</p> : null}
@@ -319,9 +226,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
 
         {displayError ? <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{displayError}</p> : null}
         {categories.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink/60">支出カテゴリがまだありません。設定でカテゴリを追加してください。</p> : null}
-        <div className="mt-5 hidden sm:block">
-          <FormSubmitButton className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft transition active:scale-[0.98] disabled:bg-ink/20" />
-        </div>
+        <div className="mt-5 hidden sm:block"><FormSubmitButton className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft transition active:scale-[0.98] disabled:bg-ink/20" /></div>
         <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4 sm:hidden">
           <FormSubmitButton className="min-h-14 w-full rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-soft transition active:scale-[0.98] disabled:bg-ink/20" />
         </div>
@@ -344,24 +249,17 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
             return (
               <MobileCard key={expense.id} title={`${category?.icon ?? ""} ${category?.name ?? "未分類"}`} amount={yen(expense.amount)}>
                 <button className="grid gap-1 text-left transition active:scale-[0.99]" type="button" onClick={() => setEditingExpenseId(isEditing ? null : expense.id)}>
-                  <span>
-                    {expense.date} / {expense.payer || "支払者未設定"} / {targetLabels[expense.target]}
-                  </span>
+                  <span>{expense.date} / {expense.payer || "支払者未設定"} / {getPaymentMethodLabel(data, expense)}</span>
+                  <span>{targetLabels[expense.target]}</span>
                   {expense.location ? <span>場所: {expense.location}</span> : null}
                   {expense.memo ? <span>{expense.memo}</span> : null}
-                  {data.members.map((member) => (
-                    <span key={member.id}>
-                      {member.name}: {yen(burden[member.id] ?? 0)}
-                    </span>
-                  ))}
+                  {data.members.map((member) => <span key={member.id}>{member.name}: {yen(burden[member.id] ?? 0)}</span>)}
                 </button>
                 {isEditing ? (
                   <ExpenseEditForm data={data} expense={expense} categories={categories} onCancel={() => setEditingExpenseId(null)} />
                 ) : (
                   <div className="mt-3 flex items-center justify-end gap-2">
-                    <button className="min-h-11 rounded-xl border border-emerald-900/10 bg-white px-4 text-sm font-bold text-leaf transition active:scale-[0.98]" type="button" onClick={() => setEditingExpenseId(expense.id)}>
-                      編集
-                    </button>
+                    <button className="min-h-11 rounded-xl border border-emerald-900/10 bg-white px-4 text-sm font-bold text-leaf transition active:scale-[0.98]" type="button" onClick={() => setEditingExpenseId(expense.id)}>編集</button>
                     <ExpenseDeleteForm id={expense.id} />
                   </div>
                 )}
@@ -369,7 +267,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
             );
           })}
         </MobileCards>
-        <Table headers={["日付", "カテゴリ", "金額", "場所", "支払者", "対象", "メモ"]}>
+        <Table headers={["日付", "カテゴリ", "金額", "支払者", "支払い方法", "対象", "メモ"]}>
           {recentExpenses.map((expense) => {
             const category = getCategory(data, expense.categoryId);
             return (
@@ -377,8 +275,8 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 <Td>{expense.date}</Td>
                 <Td>{category?.name ?? "未分類"}</Td>
                 <Td>{yen(expense.amount)}</Td>
-                <Td>{expense.location}</Td>
                 <Td>{expense.payer}</Td>
+                <Td>{getPaymentMethodLabel(data, expense)}</Td>
                 <Td>{targetLabels[expense.target]}</Td>
                 <Td>{expense.memo}</Td>
               </tr>
@@ -393,12 +291,29 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
 function PayerSelect({ data, value, onChange }: { data: BudgetData; value: string; onChange: (value: string) => void }) {
   return (
     <select className="mobile-input" name="payer" value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">未選択</option>
-      {data.members.map((member) => (
-        <option key={member.id}>{member.name}</option>
-      ))}
-      <option value="共通財布">共通財布</option>
+      <option value="共通">共通</option>
+      {data.members.map((member) => <option key={member.id}>{member.name}</option>)}
     </select>
+  );
+}
+
+function PaymentMethodFields({ data, value, onChange }: { data: BudgetData; value: string; onChange: (value: string) => void }) {
+  const [type, methodId = ""] = value.split(":") as [PaymentMethodType, string?];
+  return (
+    <Field label="支払い方法">
+      <select className="mobile-input" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="personal:">個人支払い</option>
+        <option value="shared_wallet:">共通財布</option>
+        <option value="household_account:">家計口座</option>
+        {data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card" && !method.archived).map((method) => (
+          <option key={method.id} value={`shared_credit_card:${method.id}`}>{method.name}</option>
+        ))}
+        <option value="shared_credit_card:">共通クレジットカード</option>
+      </select>
+      <input type="hidden" name="paymentMethodType" value={type || "personal"} />
+      <input type="hidden" name="paymentMethodId" value={methodId ?? ""} />
+      <input type="hidden" name="paidByType" value={type === "shared_wallet" ? "shared_wallet" : "member"} />
+    </Field>
   );
 }
 

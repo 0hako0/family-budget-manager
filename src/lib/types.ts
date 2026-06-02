@@ -15,6 +15,7 @@ export type Category = {
 
 export type ExpenseTarget = "shared" | "self_only" | "partner_only";
 export type PaidByType = "member" | "shared_wallet";
+export type PaymentMethodType = "personal" | "shared_wallet" | "shared_credit_card" | "household_account";
 export type BurdenRule = "fifty_fifty" | "custom" | "income_ratio";
 export type CompareTarget = "last_month" | "two_months_ago" | "three_month_average" | "six_months_ago" | "same_month_last_year";
 export type SharedWalletTransactionType = "deposit" | "withdrawal" | "adjustment";
@@ -96,12 +97,24 @@ export type Expense = {
   payer: string;
   paidByType?: PaidByType;
   paidByUserId?: string;
+  paymentMethodType?: PaymentMethodType;
+  paymentMethodId?: string;
   target: ExpenseTarget;
   location?: string;
   memo: string;
   receiptImageUrl?: string;
   receiptOcrText?: string;
   receiptConfidence?: number;
+};
+
+export type CommonPaymentMethod = {
+  id: string;
+  type: PaymentMethodType;
+  name: string;
+  closingDay?: number;
+  withdrawalDay?: number;
+  withdrawalAccount?: string;
+  archived: boolean;
 };
 
 export type SharedWalletTransaction = {
@@ -147,6 +160,7 @@ export type BudgetData = {
   fixedCosts: FixedCost[];
   loans: Loan[];
   expenses: Expense[];
+  commonPaymentMethods: CommonPaymentMethod[];
   sharedWalletTransactions: SharedWalletTransaction[];
   monthlySummaries: MonthlySummary[];
   notificationRules: NotificationRule[];

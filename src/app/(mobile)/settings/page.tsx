@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { updateHouseholdMember, updateHouseholdSettings } from "@/app/actions";
+import { saveCommonPaymentMethod, updateHouseholdMember, updateHouseholdSettings } from "@/app/actions";
 import { CategoryManager } from "@/components/CategoryManager";
 import { DataExportTools } from "@/components/DataExportTools";
 import { inputClass } from "@/components/FormCard";
@@ -17,7 +17,7 @@ const burdenLabels: Record<BurdenRule, string> = {
 };
 
 const successMessages: Record<string, string> = {
-  household: "家計グループ設定を保存しました",
+  household: "設定を保存しました",
   member: "メンバー設定を保存しました"
 };
 
@@ -25,7 +25,7 @@ const widgetLabels = [
   ["widgetMonthEnd", "月末見込み", "monthEnd"],
   ["widgetPayerBreakdown", "支払内訳", "payerBreakdown"],
   ["widgetCategoryBudget", "カテゴリ予算", "categoryBudget"],
-  ["widgetSharedWallet", "共通財布", "sharedWallet"],
+  ["widgetSharedWallet", "共通支払い方法", "sharedWallet"],
   ["widgetIncomeSchedule", "収入予定", "incomeSchedule"],
   ["widgetBurdenRatio", "負担割合", "burdenRatio"]
 ] as const;
@@ -33,24 +33,21 @@ const widgetLabels = [
 export default async function SettingsPage({
   searchParams
 }: {
-  searchParams?: {
-    categoryError?: string;
-    settingsError?: string;
-    memberError?: string;
-    saved?: string;
-  };
+  searchParams?: { categoryError?: string; settingsError?: string; memberError?: string; saved?: string };
 }) {
   const data = await getBudgetData();
   const savedMessage = searchParams?.saved ? successMessages[searchParams.saved] : undefined;
+  const creditCards = data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card");
 
   return (
     <div className="grid gap-5">
       <section>
         <h1 className="text-xl font-black text-ink">設定</h1>
-        <p className="mt-1 text-sm text-ink/60">家計グループ、メンバー、カテゴリ、出力を管理します。</p>
+        <p className="mt-1 text-sm text-ink/60">家計グループ、メンバー、支払い方法、カテゴリを管理します。</p>
       </section>
 
       {savedMessage ? <p className="rounded-2xl bg-emerald-50 p-3 text-sm font-bold text-leaf">{savedMessage}</p> : null}
+      {searchParams?.settingsError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.settingsError}</p> : null}
 
       <section className="grid gap-3 sm:grid-cols-2">
         <MetricCard label="家計グループ" value={data.settings.groupName} />
@@ -92,63 +89,74 @@ export default async function SettingsPage({
               ))}
             </div>
           </div>
-          {searchParams?.settingsError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.settingsError}</p> : null}
           <FormSubmitButton idleLabel="保存する" pendingLabel="保存中..." className="min-h-14 rounded-2xl bg-leaf px-4 py-3 text-base font-black text-white shadow-sm transition active:scale-[0.98] disabled:bg-ink/20" />
         </form>
+      </details>
+
+      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">共通クレジットカード</summary>
+        <form action={saveCommonPaymentMethod} className="mt-3 grid gap-3 rounded-2xl bg-cream/60 p-3">
+          <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+          <input type="hidden" name="type" value="shared_credit_card" />
+          <label className="grid gap-1 text-sm font-bold text-ink/65">カード名<input className={inputClass} name="name" placeholder="家計カード" required /></label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="grid gap-1 text-sm font-bold text-ink/65">締め日<input className={inputClass} name="closingDay" type="number" inputMode="numeric" min={1} max={31} placeholder="15" /></label>
+            <label className="grid gap-1 text-sm font-bold text-ink/65">引き落とし日<input className={inputClass} name="withdrawalDay" type="number" inputMode="numeric" min={1} max={31} placeholder="27" /></label>
+          </div>
+          <label className="grid gap-1 text-sm font-bold text-ink/65">引き落とし口座<input className={inputClass} name="withdrawalAccount" placeholder="家計口座" /></label>
+          <FormSubmitButton idleLabel="カードを登録" pendingLabel="保存中..." />
+        </form>
+        <div className="mt-3 grid gap-3">
+          {creditCards.length === 0 ? <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだ共通クレカが登録されていません</p> : null}
+          {creditCards.map((card) => (
+            <form key={card.id} action={saveCommonPaymentMethod} className="grid gap-3 rounded-2xl bg-cream/60 p-3">
+              <input type="hidden" name="id" value={card.id} />
+              <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+              <input type="hidden" name="type" value="shared_credit_card" />
+              <input className={inputClass} name="name" defaultValue={card.name} required />
+              <div className="grid grid-cols-2 gap-3">
+                <input className={inputClass} name="closingDay" type="number" inputMode="numeric" min={1} max={31} defaultValue={card.closingDay ?? ""} placeholder="締め日" />
+                <input className={inputClass} name="withdrawalDay" type="number" inputMode="numeric" min={1} max={31} defaultValue={card.withdrawalDay ?? ""} placeholder="引き落とし日" />
+              </div>
+              <input className={inputClass} name="withdrawalAccount" defaultValue={card.withdrawalAccount ?? ""} placeholder="引き落とし口座" />
+              <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-ink">
+                <input name="archived" type="checkbox" defaultChecked={card.archived} />
+                非表示にする
+              </label>
+              <FormSubmitButton idleLabel="更新する" pendingLabel="保存中..." />
+            </form>
+          ))}
+        </div>
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">メンバー設定</summary>
         <div className="mt-3 grid gap-3">
           {searchParams?.memberError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.memberError}</p> : null}
-          {data.members.length === 0 ? <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだメンバーがいません</p> : null}
           {data.members.map((member) => (
             <form key={member.id} action={updateHouseholdMember} className="grid gap-3 rounded-2xl bg-cream/60 p-3">
               <input type="hidden" name="id" value={member.id} />
-              <label className="grid gap-1 text-sm font-bold text-ink/65">
-                表示名
-                <input className={inputClass} name="displayName" defaultValue={member.name} required />
-              </label>
+              <label className="grid gap-1 text-sm font-bold text-ink/65">表示名<input className={inputClass} name="displayName" defaultValue={member.name} required /></label>
               <div className="grid grid-cols-2 gap-3">
-                <label className="grid gap-1 text-sm font-bold text-ink/65">
-                  負担割合
-                  <input className={inputClass} name="shareRatio" type="number" inputMode="numeric" min={0} max={100} defaultValue={Math.round(member.shareRatio * 100)} />
-                </label>
-                <label className="grid gap-1 text-sm font-bold text-ink/65">
-                  role
-                  <select className={inputClass} name="role" defaultValue={member.role}>
-                    <option value="owner">owner</option>
-                    <option value="member">member</option>
-                  </select>
-                </label>
+                <label className="grid gap-1 text-sm font-bold text-ink/65">負担割合<input className={inputClass} name="shareRatio" type="number" inputMode="numeric" min={0} max={100} defaultValue={Math.round(member.shareRatio * 100)} /></label>
+                <label className="grid gap-1 text-sm font-bold text-ink/65">role<select className={inputClass} name="role" defaultValue={member.role}><option value="owner">owner</option><option value="member">member</option></select></label>
               </div>
               <FormSubmitButton idleLabel="メンバーを保存" pendingLabel="保存中..." />
             </form>
           ))}
-          <p className="rounded-2xl bg-cream/60 p-3 text-xs font-bold text-ink/55">
-            負担割合の変更は、今後入力する支出や現在の集計表示に反映されます。月締め済みの過去サマリーは再計算しません。
-          </p>
         </div>
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">家計コード</summary>
-        <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">
-          このコードをパートナーに共有すると、同じ家計に参加できます。招待メールは送信しません。
-        </p>
-        <div className="mt-3">
-          <InviteCodeCard code={data.settings.inviteCode} />
-        </div>
+        <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">このコードをパートナーに共有すると、同じ家計に参加できます。招待メールは送信しません。</p>
+        <div className="mt-3"><InviteCodeCard code={data.settings.inviteCode} /></div>
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">CSV出力・バックアップ</summary>
-        <div className="mt-3">
-          <DataExportTools data={data} />
-        </div>
-        <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-xs font-bold text-ink/55">
-          JSONは機種変更や手元バックアップ用の書き出しです。インポートは安全な復元チェックを追加してから有効化します。
-        </p>
+        <div className="mt-3"><DataExportTools data={data} /></div>
+        <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-xs font-bold text-ink/55">JSONは手元バックアップ用の書き出しです。インポートは安全な復元チェックを追加してから有効化します。</p>
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
