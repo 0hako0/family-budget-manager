@@ -85,6 +85,8 @@ check("支払予定詳細画面", includes("src/app/(mobile)/schedule/page.tsx",
 check("共通支払者は個人IDを保存しない", actions.includes("isCommonPayer") && actions.includes('paid_by_user_id: isCommonPayer || isSharedWallet ? null'));
 check("共有支出の負担割合を正規化", budget.includes("normalizeShares") && budget.includes("expense.target !== \"shared\""));
 check("共通支払者表示の共通関数", budget.includes("getExpensePayerLabel") && expenseEntry.includes("getExpensePayerLabel"));
+check("設定の詳細管理リンクを削除", !settings.includes("詳細管理") && !settings.includes('href="/incomes"') && !settings.includes('href="/savings"') && !settings.includes('href="/loans"'));
+check("貯金目標金額欄はスマホ縦並び", settings.includes("grid gap-3 sm:grid-cols-2") && settings.includes("目標金額") && settings.includes("現在額"));
 
 const failed = checks.filter((item) => !item.passed);
 

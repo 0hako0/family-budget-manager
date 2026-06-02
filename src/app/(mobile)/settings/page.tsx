@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { saveCommonPaymentMethod, saveSavingGoal, updateHouseholdMember, updateHouseholdSettings } from "@/app/actions";
 import { CategoryManager } from "@/components/CategoryManager";
 import { DataExportTools } from "@/components/DataExportTools";
 import { inputClass } from "@/components/FormCard";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
-import { ListSection } from "@/components/ListSection";
 import { MetricCard } from "@/components/MetricCard";
 import { getBudgetData } from "@/lib/data";
 import type { BurdenRule } from "@/lib/types";
@@ -111,7 +109,7 @@ export default async function SettingsPage({
         </form>
       </details>
 
-      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
+      <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">共通クレジットカード</summary>
         <form action={saveCommonPaymentMethod} className="mt-3 grid gap-3 rounded-2xl bg-cream/60 p-3">
           <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
@@ -147,12 +145,12 @@ export default async function SettingsPage({
         </div>
       </details>
 
-      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
+      <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">貯金目標</summary>
         <form action={saveSavingGoal} className="mt-3 grid gap-3 rounded-2xl bg-cream/60 p-3">
           <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
           <label className="grid gap-1 text-sm font-bold text-ink/65">目標名<input className={inputClass} name="name" placeholder="住宅購入" required /></label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-bold text-ink/65">目標金額<input className={inputClass} name="targetAmount" type="number" inputMode="numeric" placeholder="5000000" required /></label>
             <label className="grid gap-1 text-sm font-bold text-ink/65">現在額<input className={inputClass} name="currentAmount" type="number" inputMode="numeric" placeholder="1820000" /></label>
           </div>
@@ -167,9 +165,9 @@ export default async function SettingsPage({
               <input type="hidden" name="id" value={goal.id} />
               <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
               <input className={inputClass} name="name" defaultValue={goal.name} required />
-              <div className="grid grid-cols-2 gap-3">
-                <input className={inputClass} name="targetAmount" type="number" inputMode="numeric" defaultValue={goal.targetAmount} required />
-                <input className={inputClass} name="currentAmount" type="number" inputMode="numeric" defaultValue={goal.currentAmount} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1 text-sm font-bold text-ink/65">目標金額<input className={inputClass} name="targetAmount" type="number" inputMode="numeric" defaultValue={goal.targetAmount} required /></label>
+                <label className="grid gap-1 text-sm font-bold text-ink/65">現在額<input className={inputClass} name="currentAmount" type="number" inputMode="numeric" defaultValue={goal.currentAmount} /></label>
               </div>
               <input className={inputClass} name="dueDate" type="date" defaultValue={goal.dueDate ?? ""} />
               <input className={inputClass} name="memo" defaultValue={goal.memo ?? ""} />
@@ -201,7 +199,7 @@ export default async function SettingsPage({
         </div>
       </details>
 
-      <details className="rounded-[22px] bg-white p-4 shadow-sm" open>
+      <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">家計コード</summary>
         <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/70">このコードをパートナーに共有すると、同じ家計に参加できます。招待メールは送信しません。</p>
         <div className="mt-3"><InviteCodeCard code={data.settings.inviteCode} /></div>
@@ -222,21 +220,13 @@ export default async function SettingsPage({
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
-        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">詳細管理</summary>
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">通知設定</summary>
         <div className="mt-3 grid gap-2">
-          <Link className="min-h-11 rounded-2xl bg-cream/60 px-3 py-3 text-sm font-bold text-leaf" href="/incomes">収入管理</Link>
-          <Link className="min-h-11 rounded-2xl bg-cream/60 px-3 py-3 text-sm font-bold text-leaf" href="/savings">貯金・投資管理</Link>
-          <Link className="min-h-11 rounded-2xl bg-cream/60 px-3 py-3 text-sm font-bold text-leaf" href="/loans">ローン管理</Link>
-        </div>
-      </details>
-
-      <ListSection title="将来用通知設計">
-        <div className="grid gap-2">
           {["食費80%超え", "カテゴリ予算超過", "今月ペース超過", "固定費見直し通知"].map((label) => (
             <div key={label} className="rounded-2xl bg-cream/60 px-3 py-3 text-sm font-bold text-ink">{label}</div>
           ))}
         </div>
-      </ListSection>
+      </details>
     </div>
   );
 }
