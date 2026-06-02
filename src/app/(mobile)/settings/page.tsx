@@ -110,6 +110,14 @@ export default async function SettingsPage({
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">カテゴリ設定</summary>
+        <div className="mt-3">
+          {searchParams?.categoryError ? <p className="mb-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.categoryError}</p> : null}
+          <CategoryManager initialCategories={data.categories} householdGroupId={data.householdGroupId} />
+        </div>
+      </details>
+
+      <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">共通クレジットカード</summary>
         <form action={saveCommonPaymentMethod} className="mt-3 grid gap-3 rounded-2xl bg-cream/60 p-3">
           <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
@@ -209,14 +217,6 @@ export default async function SettingsPage({
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">CSV出力・バックアップ</summary>
         <div className="mt-3"><DataExportTools data={data} /></div>
         <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-xs font-bold text-ink/55">JSONは手元バックアップ用の書き出しです。インポートは安全な復元チェックを追加してから有効化します。</p>
-      </details>
-
-      <details className="rounded-[22px] bg-white p-4 shadow-sm">
-        <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">カテゴリ設定</summary>
-        <div className="mt-3">
-          {searchParams?.categoryError ? <p className="mb-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.categoryError}</p> : null}
-          <CategoryManager initialCategories={data.categories} householdGroupId={data.householdGroupId} />
-        </div>
       </details>
 
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
