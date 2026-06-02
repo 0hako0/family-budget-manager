@@ -1,12 +1,15 @@
 create extension if not exists "pgcrypto";
 
 create or replace function public.set_updated_at()
-returns trigger as $$
+returns trigger
+language plpgsql
+set search_path = public
+as $$
 begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$;
 
 create table if not exists public.users (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -605,11 +608,26 @@ create policy "members can read invitations" on public.household_invitations for
 drop policy if exists "owners can create invitations" on public.household_invitations;
 create policy "owners can create invitations" on public.household_invitations for insert to authenticated with check (public.is_household_owner(household_group_id));
 drop policy if exists "invite users can update invitations" on public.household_invitations;
-create policy "invite users can update invitations" on public.household_invitations for update to authenticated using (used_at is null and expires_at > now()) with check (true);
+create policy "invite users can update invitations" on public.household_invitations
+for update
+to authenticated
+using (public.is_household_member(household_group_id) and used_at is null and expires_at > now())
+with check (public.is_household_member(household_group_id));
 
+revoke execute on function public.set_updated_at() from public, anon;
+revoke execute on function public.create_household_group(text, text, text, numeric) from public, anon;
+revoke execute on function public.join_household_by_invite_code(text, text, numeric) from public, anon;
+revoke execute on function public.ensure_default_categories(uuid) from public, anon;
+revoke execute on function public.cleanup_expired_receipt_refs() from public, anon;
+revoke execute on function public.is_household_member(uuid) from public, anon;
+revoke execute on function public.is_household_owner(uuid) from public, anon;
+revoke execute on function public.is_household_creator(uuid) from public, anon;
 grant execute on function public.create_household_group(text, text, text, numeric) to authenticated;
 grant execute on function public.join_household_by_invite_code(text, text, numeric) to authenticated;
 grant execute on function public.ensure_default_categories(uuid) to authenticated;
+grant execute on function public.is_household_member(uuid) to authenticated;
+grant execute on function public.is_household_owner(uuid) to authenticated;
+grant execute on function public.is_household_creator(uuid) to authenticated;
 
 drop policy if exists "household data select" on public.categories;
 create policy "household data select" on public.categories for select to authenticated using (public.is_household_member(household_group_id));
