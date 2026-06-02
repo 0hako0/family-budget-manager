@@ -6,7 +6,7 @@ export default async function LoginPage({ searchParams }: { searchParams?: { err
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-md content-center gap-6 bg-cream px-5 py-10">
       <section>
-        <p className="text-sm font-black text-leaf">Family Budget Manager</p>
+        <p className="text-sm font-black text-leaf">KakeiCanvas</p>
         <h1 className="mt-2 text-3xl font-black text-ink">ログイン</h1>
         <p className="mt-2 text-sm leading-6 text-ink/60">メールアドレスとパスワードでログインします。</p>
       </section>

@@ -2,17 +2,17 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Family Budget Manager",
-  description: "夫婦で共有して使える家計運用アプリ",
+  title: "KakeiCanvas",
+  description: "夫婦で共有できる家計管理アプリ",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Family Budget"
+    title: "KakeiCanvas"
   },
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg"
+    icon: "/icon.png",
+    apple: "/apple-touch-icon.png"
   }
 };
 
@@ -21,7 +21,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#2f8f6b"
+  themeColor: "#2f946f"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

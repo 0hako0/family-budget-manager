@@ -6,7 +6,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { error?: 
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-md content-center gap-6 bg-cream px-5 py-10">
       <section>
-        <p className="text-sm font-black text-leaf">Family Budget Manager</p>
+        <p className="text-sm font-black text-leaf">KakeiCanvas</p>
         <h1 className="mt-2 text-3xl font-black text-ink">新規登録</h1>
         <p className="mt-2 text-sm leading-6 text-ink/60">
           メールアドレスとパスワードで登録します。メール確認は使わず、登録後すぐに家計セットアップへ進みます。

@@ -23,7 +23,7 @@ export default async function MobileLayout({ children }: { children: React.React
       <header className="sticky top-0 z-40 -mx-4 bg-cream/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex min-h-10 items-center justify-between gap-3">
           <Link href="/" prefetch className="min-w-0 text-base font-black tracking-normal text-ink transition active:scale-[0.98]">
-            <span className="block truncate">{group?.name ?? "Family Budget"}</span>
+            <span className="block truncate">{group?.name ?? "KakeiCanvas"}</span>
           </Link>
           <div className="flex shrink-0 items-center gap-2">
             <ManualRefreshButton />
