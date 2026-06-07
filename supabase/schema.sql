@@ -622,9 +622,10 @@ revoke execute on function public.cleanup_expired_receipt_refs() from public, an
 revoke execute on function public.is_household_member(uuid) from public, anon;
 revoke execute on function public.is_household_owner(uuid) from public, anon;
 revoke execute on function public.is_household_creator(uuid) from public, anon;
+revoke execute on function public.ensure_default_categories(uuid) from authenticated;
+revoke execute on function public.cleanup_expired_receipt_refs() from authenticated;
 grant execute on function public.create_household_group(text, text, text, numeric) to authenticated;
 grant execute on function public.join_household_by_invite_code(text, text, numeric) to authenticated;
-grant execute on function public.ensure_default_categories(uuid) to authenticated;
 grant execute on function public.is_household_member(uuid) to authenticated;
 grant execute on function public.is_household_owner(uuid) to authenticated;
 grant execute on function public.is_household_creator(uuid) to authenticated;

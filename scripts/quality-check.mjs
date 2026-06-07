@@ -30,6 +30,7 @@ const realtime = read("src/components/RealtimeRefresh.tsx");
 const home = read("src/app/(mobile)/page.tsx");
 const settings = read("src/app/(mobile)/settings/page.tsx");
 const securityHardening = read("supabase/migrations/015_security_advisor_hardening.sql");
+const securityLimits = read("supabase/migrations/016_limit_internal_security_definer_rpc.sql");
 
 [
   ["新規登録", "signUp"],
@@ -102,10 +103,16 @@ check(
     securityHardening.includes("revoke execute on function public.cleanup_expired_receipt_refs() from public, anon")
 );
 check(
-  "Security Advisor: RPC execute is limited to authenticated",
+  "Security Advisor: user-facing RPC execute is limited to authenticated",
   securityHardening.includes("grant execute on function public.create_household_group(text, text, text, numeric) to authenticated") &&
-    securityHardening.includes("grant execute on function public.join_household_by_invite_code(text, text, numeric) to authenticated") &&
-    securityHardening.includes("grant execute on function public.ensure_default_categories(uuid) to authenticated")
+    securityHardening.includes("grant execute on function public.join_household_by_invite_code(text, text, numeric) to authenticated")
+);
+check(
+  "Security Advisor: internal RPC execute is disabled for authenticated",
+  schema.includes("revoke execute on function public.ensure_default_categories(uuid) from authenticated") &&
+    schema.includes("revoke execute on function public.cleanup_expired_receipt_refs() from authenticated") &&
+    securityLimits.includes("revoke execute on function public.ensure_default_categories(uuid) from authenticated") &&
+    securityLimits.includes("revoke execute on function public.cleanup_expired_receipt_refs() from authenticated")
 );
 
 const failed = checks.filter((item) => !item.passed);
