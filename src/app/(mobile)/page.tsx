@@ -6,6 +6,7 @@ import { MonthlySnapshotRunner } from "@/components/MonthlySnapshotRunner";
 import {
   getBudgetConsumption,
   getMonthlyCategoryBudgetProgress,
+  getMonthlyExpenseSummary,
   getRemainingDays,
   getSharedCreditCardSummary,
   getTotals,
@@ -25,6 +26,7 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   const upcomingPayments = getUpcomingPayments(data, referenceDate).slice(0, 3);
   const sharedCard = getSharedCreditCardSummary(data, referenceDate);
   const consumption = getBudgetConsumption(data, referenceDate);
+  const monthlyExpense = getMonthlyExpenseSummary(data, referenceDate);
   const consumptionPercent = Math.round(consumption.rate * 100);
   const consumptionTone = consumption.rate >= 1 ? "bg-warn" : consumption.rate >= 0.8 ? "bg-amber-400" : "bg-leaf";
   const widgets = data.settings.homeWidgets;
@@ -45,6 +47,27 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
         <p className="mt-1 text-5xl font-black tracking-normal text-ink">{yen(totals.remainingBudget)}</p>
 
         <div className="mt-4 grid gap-3">
+          <div className="rounded-2xl bg-cream/70 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-ink/65">今月の支出</p>
+                <p className="mt-1 text-3xl font-black text-ink">{yen(monthlyExpense.total)}</p>
+              </div>
+              {monthlyExpense.previousDiffRate !== undefined ? (
+                <p className={monthlyExpense.previousDiffRate <= 0 ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-leaf" : "rounded-full bg-red-50 px-3 py-1 text-xs font-black text-warn"}>
+                  先月比 {monthlyExpense.previousDiffRate <= 0 ? "▲" : "+"}
+                  {Math.abs(Math.round(monthlyExpense.previousDiffRate * 100))}%
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-ink/55">
+              <p>変動費 {yen(monthlyExpense.variableExpenseTotal)}</p>
+              <p>固定費 {yen(monthlyExpense.fixedCostTotal)}</p>
+              <p>共通クレカ {yen(monthlyExpense.sharedCreditCardTotal)}</p>
+              <p>{monthlyExpense.expenseCount}件</p>
+            </div>
+          </div>
+
           <div className="rounded-2xl bg-emerald-50 p-3">
             <p className="text-sm font-bold text-leaf">今日使える目安</p>
             <p className="mt-1 text-2xl font-black text-ink">{yen(totals.dailyGuide)}</p>

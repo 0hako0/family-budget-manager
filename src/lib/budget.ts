@@ -178,6 +178,26 @@ export function getBudgetConsumption(data: BudgetData, referenceDate = new Date(
   return { used, plannedIncome: totals.incomeTotal, rate: totals.incomeTotal === 0 ? 0 : used / totals.incomeTotal };
 }
 
+export function getMonthlyExpenseSummary(data: BudgetData, referenceDate = new Date()) {
+  const scoped = getMonthScopedData(data, referenceDate);
+  const previousReferenceDate = getReferenceDateFromMonthKey(shiftMonthKey(getMonthBudgetPeriod(referenceDate).monthKey, -1));
+  const previousScoped = getMonthScopedData(data, previousReferenceDate);
+  const variableExpenseTotal = sumBy(scoped.expenses, (expense) => expense.amount);
+  const fixedCostTotal = sumBy(scoped.fixedCosts, (cost) => cost.amount);
+  const sharedCreditCardTotal = sumBy(scoped.expenses.filter(isSharedCreditCardExpense), (expense) => expense.amount);
+  const total = variableExpenseTotal + fixedCostTotal;
+  const previousTotal = sumBy(previousScoped.expenses, (expense) => expense.amount) + sumBy(previousScoped.fixedCosts, (cost) => cost.amount);
+  return {
+    total,
+    variableExpenseTotal,
+    fixedCostTotal,
+    sharedCreditCardTotal,
+    expenseCount: scoped.expenses.length,
+    previousTotal,
+    previousDiffRate: previousTotal === 0 ? undefined : (total - previousTotal) / previousTotal
+  };
+}
+
 export function getExpensePaymentMethodType(expense: Expense): PaymentMethodType {
   if (expense.paymentMethodType) return expense.paymentMethodType;
   if (expense.paidByType === "shared_wallet" || expense.payer === "共通財布") return "shared_wallet";
