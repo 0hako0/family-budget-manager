@@ -98,8 +98,9 @@ check("カテゴリ重複作成を防止", actions.includes("createExpenseCatego
 check("ホームに今月の支出合計カード", home.includes("今月の支出") && home.includes("getMonthlyExpenseSummary"));
 check("今月の支出合計は共通ロジックで計算", budget.includes("function getMonthlyExpenseSummary") && budget.includes("sharedCreditCardTotal") && budget.includes("previousDiffRate"));
 check("ホームの支出カードにカテゴリ・店舗TOPを表示", home.includes("変動費TOP3") && home.includes("TOP店舗") && home.includes('href="/spending"'));
-check("支出詳細画面", spendingPage.includes("カテゴリ別内訳") && spendingPage.includes("店舗別内訳") && spendingPage.includes("今月の支出TOP5") && spendingPage.includes("支払い方法別"));
-check("支出詳細は店舗と支出TOPを共通集計", budget.includes("function getMonthlySpendingInsight") && budget.includes("locationMap") && budget.includes("topExpenses"));
+check("支出詳細画面", spendingPage.includes("カテゴリ別内訳") && spendingPage.includes("店舗別内訳") && spendingPage.includes("今月の支出一覧") && spendingPage.includes("支払い方法別"));
+check("支出詳細はタブと検索で全件確認", spendingPage.includes("spending-search") && spendingPage.includes("filteredExpenses.map") && spendingPage.includes("filteredLocations.map"));
+check("支出詳細は店舗と支出一覧を共通集計", budget.includes("function getMonthlySpendingInsight") && budget.includes("locationMap") && budget.includes("expenses,"));
 check("Security Advisor: no always-true policies in schema", !/using\s*\(\s*true\s*\)|with check\s*\(\s*true\s*\)/i.test(schema));
 check("Security Advisor: set_updated_at has fixed search_path", /create or replace function public\.set_updated_at\(\)[\s\S]*set search_path = public/i.test(schema));
 check(

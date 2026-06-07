@@ -236,10 +236,9 @@ export function getMonthlySpendingInsight(data: BudgetData, referenceDate = new 
     })
     .sort((a, b) => b.amount - a.amount);
 
-  const topExpenses = scoped.expenses
+  const expenses = scoped.expenses
     .slice()
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount)
     .map((expense) => {
       const category = getCategory(data, expense.categoryId);
       return {
@@ -250,12 +249,15 @@ export function getMonthlySpendingInsight(data: BudgetData, referenceDate = new 
         paymentMethod: getPaymentMethodLabel(data, expense)
       };
     });
+  const topExpenses = expenses.slice().sort((a, b) => b.expense.amount - a.expense.amount).slice(0, 5);
 
   return {
     summary: getMonthlyExpenseSummary(data, referenceDate),
+    categories: categoryRows,
     topCategories,
     otherCategoryTotal,
     locations: locationRows,
+    expenses,
     topExpenses,
     paymentMethods: getMonthlyPaymentMethodBreakdown(data, referenceDate)
   };
