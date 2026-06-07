@@ -198,6 +198,69 @@ export function getMonthlyExpenseSummary(data: BudgetData, referenceDate = new D
   };
 }
 
+export function getMonthlySpendingInsight(data: BudgetData, referenceDate = new Date()) {
+  const scoped = getMonthScopedData(data, referenceDate);
+  const categoryRows = groupExpensesByCategory(scoped.expenses)
+    .map((item) => {
+      const category = getCategory(data, item.categoryId);
+      return {
+        id: item.categoryId,
+        name: category?.name ?? "未分類",
+        icon: category?.icon ?? "・",
+        color: category?.color ?? "#2f8f6b",
+        amount: item.value
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+  const topCategories = categoryRows.slice(0, 3);
+  const otherCategoryTotal = sumBy(categoryRows.slice(3), (item) => item.amount);
+
+  const locationMap = new Map<string, { location: string; amount: number; categoryTotals: Map<string, number> }>();
+  scoped.expenses.forEach((expense) => {
+    const location = expense.location?.trim() || "店舗未登録";
+    const current = locationMap.get(location) ?? { location, amount: 0, categoryTotals: new Map<string, number>() };
+    current.amount += expense.amount;
+    current.categoryTotals.set(expense.categoryId, (current.categoryTotals.get(expense.categoryId) ?? 0) + expense.amount);
+    locationMap.set(location, current);
+  });
+  const locationRows = Array.from(locationMap.values())
+    .map((item) => {
+      const [categoryId] = Array.from(item.categoryTotals.entries()).sort((a, b) => b[1] - a[1])[0] ?? [""];
+      const category = getCategory(data, categoryId);
+      return {
+        location: item.location,
+        amount: item.amount,
+        categoryName: category?.name ?? "未分類",
+        categoryColor: category?.color ?? "#2f8f6b"
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
+  const topExpenses = scoped.expenses
+    .slice()
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5)
+    .map((expense) => {
+      const category = getCategory(data, expense.categoryId);
+      return {
+        expense,
+        location: expense.location?.trim() || "店舗未登録",
+        categoryName: category?.name ?? "未分類",
+        categoryColor: category?.color ?? "#2f8f6b",
+        paymentMethod: getPaymentMethodLabel(data, expense)
+      };
+    });
+
+  return {
+    summary: getMonthlyExpenseSummary(data, referenceDate),
+    topCategories,
+    otherCategoryTotal,
+    locations: locationRows,
+    topExpenses,
+    paymentMethods: getMonthlyPaymentMethodBreakdown(data, referenceDate)
+  };
+}
+
 export function getExpensePaymentMethodType(expense: Expense): PaymentMethodType {
   if (expense.paymentMethodType) return expense.paymentMethodType;
   if (expense.paidByType === "shared_wallet" || expense.payer === "共通財布") return "shared_wallet";

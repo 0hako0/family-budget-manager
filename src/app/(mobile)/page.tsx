@@ -7,6 +7,7 @@ import {
   getBudgetConsumption,
   getMonthlyCategoryBudgetProgress,
   getMonthlyExpenseSummary,
+  getMonthlySpendingInsight,
   getRemainingDays,
   getSharedCreditCardSummary,
   getTotals,
@@ -27,6 +28,7 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   const sharedCard = getSharedCreditCardSummary(data, referenceDate);
   const consumption = getBudgetConsumption(data, referenceDate);
   const monthlyExpense = getMonthlyExpenseSummary(data, referenceDate);
+  const spendingInsight = getMonthlySpendingInsight(data, referenceDate);
   const consumptionPercent = Math.round(consumption.rate * 100);
   const consumptionTone = consumption.rate >= 1 ? "bg-warn" : consumption.rate >= 0.8 ? "bg-amber-400" : "bg-leaf";
   const widgets = data.settings.homeWidgets;
@@ -66,6 +68,46 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
               <p>共通クレカ {yen(monthlyExpense.sharedCreditCardTotal)}</p>
               <p>{monthlyExpense.expenseCount}件</p>
             </div>
+            {spendingInsight.summary.variableExpenseTotal > 0 ? (
+              <div className="mt-3 grid gap-3">
+                <div className="rounded-2xl bg-white/70 p-3">
+                  <p className="text-xs font-black text-ink/50">変動費TOP3</p>
+                  <div className="mt-2 grid gap-2">
+                    {spendingInsight.topCategories.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-3 text-xs font-bold">
+                        <span className="min-w-0 truncate">
+                          <span className="mr-1">{item.icon}</span>
+                          {item.name}
+                        </span>
+                        <span className="shrink-0 text-ink">{yen(item.amount)}</span>
+                      </div>
+                    ))}
+                    {spendingInsight.otherCategoryTotal > 0 ? (
+                      <div className="flex items-center justify-between gap-3 text-xs font-bold text-ink/60">
+                        <span>その他</span>
+                        <span>{yen(spendingInsight.otherCategoryTotal)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white/70 p-3">
+                  <p className="text-xs font-black text-ink/50">TOP店舗</p>
+                  <div className="mt-2 grid gap-2">
+                    {spendingInsight.locations.slice(0, 3).map((item) => (
+                      <div key={item.location} className="flex items-center justify-between gap-3 text-xs font-bold">
+                        <span className="min-w-0 truncate">{item.location}</span>
+                        <span className="shrink-0 text-ink">{yen(item.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <Link href="/spending" prefetch className="flex min-h-11 items-center justify-center rounded-2xl border border-leaf/30 bg-white px-4 py-2 text-sm font-black text-leaf transition active:scale-[0.98]">
+                  詳しく見る
+                </Link>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-2xl bg-white/70 p-3 text-xs font-bold text-ink/55">まだ変動費の支出はありません。支出を入力すると、カテゴリ別・店舗別に表示されます。</p>
+            )}
           </div>
 
           <div className="rounded-2xl bg-emerald-50 p-3">
