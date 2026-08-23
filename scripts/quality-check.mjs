@@ -110,6 +110,10 @@ check("固定項目の適用期間を月ごとに判定", budget.includes("funct
 check("適用期間を保存・編集できる", actions.includes("function activePeriod") && fixedTabs.includes("適用開始月") && fixedTabs.includes("適用終了月"));
 check("適用期間のマイグレーション", read("supabase/migrations/017_item_active_period.sql").includes("starts_on") && schema.includes("alter table public.fixed_costs add column if not exists starts_on date;"));
 
+check("月別推移はカテゴリ別に切替できる", budget.includes("function getCategoryMonthlyTrend") && read("src/components/ReportsTabs.tsx").includes("trendModes") && read("src/components/Charts.tsx").includes("CategoryTrendChart"));
+check("締め済みの月は保存済みサマリーを使う", budget.includes("function getMonthlySummary") && actions.includes("targetMonth"));
+check("明細取得はページング", read("src/lib/data.ts").includes("function fetchAllRows") && read("src/lib/data.ts").includes("detailStartDate"));
+
 check("Security Advisor: no always-true policies in schema", !/using\s*\(\s*true\s*\)|with check\s*\(\s*true\s*\)/i.test(schema));
 check("Security Advisor: set_updated_at has fixed search_path", /create or replace function public\.set_updated_at\(\)[\s\S]*set search_path = public/i.test(schema));
 check(

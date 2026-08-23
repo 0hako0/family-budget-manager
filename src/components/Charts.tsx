@@ -51,6 +51,38 @@ export function MonthlyTrendChart({
   );
 }
 
+export function CategoryTrendChart({
+  rows,
+  series
+}: {
+  rows: Array<Record<string, string | number>>;
+  series: Array<{ key: string; name: string; color: string }>;
+}) {
+  return (
+    <div className="h-80 w-full">
+      <ResponsiveContainer>
+        <BarChart data={rows} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e8dcc8" />
+          <XAxis dataKey="month" tickLine={false} axisLine={false} />
+          <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={(value) => `${Math.round(Number(value) / 10000)}万`} />
+          <Tooltip formatter={yen} />
+          <Legend />
+          {series.map((item, index) => (
+            <Bar
+              key={item.key}
+              dataKey={item.key}
+              name={item.name}
+              stackId="category"
+              fill={item.color || colors[index % colors.length]}
+              radius={index === series.length - 1 ? [6, 6, 0, 0] : undefined}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export function RatioBarChart({ data }: { data: { name: string; value: number }[] }) {
   return (
     <div className="h-56 w-full">

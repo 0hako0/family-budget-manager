@@ -520,6 +520,53 @@ export function getMonthlyTrend(data: BudgetData, referenceDate = new Date()) {
     }));
 }
 
+/**
+ * 変動費のカテゴリ別・月別推移。締め済みの月は保存済みサマリー、未締めの月は
+ * その月の支出から集計する。上位カテゴリ以外は「その他」にまとめる。
+ */
+export function getCategoryMonthlyTrend(data: BudgetData, referenceDate = new Date(), months = 12, topCount = 6) {
+  const currentMonthKey = getMonthBudgetPeriod(referenceDate).monthKey;
+  const monthKeys = Array.from({ length: months }, (_, index) => shiftMonthKey(currentMonthKey, index - months + 1));
+  const amountsByMonth = monthKeys.map((monthKey) => {
+    const stored = data.monthlySummaries.find((summary) => summary.month === monthKey);
+    if (stored) return stored.categoryExpenses ?? {};
+    return Object.fromEntries(groupExpensesByCategory(data.expenses.filter((expense) => expense.date.slice(0, 7) === monthKey)).map((item) => [item.categoryId, item.value]));
+  });
+
+  const totalByCategory = new Map<string, number>();
+  amountsByMonth.forEach((amounts) => {
+    Object.entries(amounts).forEach(([categoryId, amount]) => totalByCategory.set(categoryId, (totalByCategory.get(categoryId) ?? 0) + amount));
+  });
+  const ranked = Array.from(totalByCategory.entries())
+    .filter(([, total]) => total > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const topCategoryIds = ranked.slice(0, topCount).map(([categoryId]) => categoryId);
+  const hasOthers = ranked.length > topCategoryIds.length;
+
+  const series = [
+    ...topCategoryIds.map((categoryId) => {
+      const category = getCategory(data, categoryId);
+      return { key: categoryId, name: `${category?.icon ?? ""}${category?.name ?? "未分類"}`.trim(), color: category?.color ?? "#2f8f6b", total: totalByCategory.get(categoryId) ?? 0 };
+    }),
+    ...(hasOthers ? [{ key: "others", name: "その他", color: "#b9b0a2", total: sumBy(ranked.slice(topCount), ([, total]) => total) }] : [])
+  ];
+
+  const rows = monthKeys.map((monthKey, index) => {
+    const amounts = amountsByMonth[index];
+    const row: Record<string, string | number> = { month: monthKey.slice(5), monthKey };
+    topCategoryIds.forEach((categoryId) => {
+      row[categoryId] = amounts[categoryId] ?? 0;
+    });
+    if (hasOthers) {
+      row.others = Object.entries(amounts).reduce((total, [categoryId, amount]) => (topCategoryIds.includes(categoryId) ? total : total + amount), 0);
+    }
+    row.total = Object.values(amounts).reduce((total, amount) => total + amount, 0);
+    return row;
+  });
+
+  return { monthKeys, series, rows, isEmpty: series.length === 0 };
+}
+
 export function getComparisonSummary(data: BudgetData, target: CompareTarget, referenceDate = new Date()) {
   const currentMonthKey = getMonthBudgetPeriod(referenceDate).monthKey;
   const summaries = [...data.monthlySummaries].sort((a, b) => b.month.localeCompare(a.month));

@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { closeCurrentMonth } from "@/app/actions";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
-import { CategoryPieChart, MonthlyTrendChart, RatioBarChart } from "@/components/Charts";
+import { CategoryPieChart, CategoryTrendChart, MonthlyTrendChart, RatioBarChart } from "@/components/Charts";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import {
   getCalendarDaySummaries,
   getCategory,
+  getCategoryMonthlyTrend,
   getMonthScopedData,
   getMonthlyCategoryBudgetProgress,
   getMonthlyComparison,
@@ -24,6 +25,7 @@ import type { BudgetData, CompareTarget, ExpenseTarget } from "@/lib/types";
 import { MetricCard } from "./MetricCard";
 
 const tabs = ["カテゴリ別", "月別推移", "比率", "年比較", "カレンダー"] as const;
+const trendModes = ["合計", "カテゴリ別"] as const;
 const compareTargets: Array<{ value: CompareTarget; label: string }> = [
   { value: "last_month", label: "先月" },
   { value: "two_months_ago", label: "先々月" },
@@ -43,12 +45,14 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>("カテゴリ別");
   const [target, setTarget] = useState<CompareTarget>("last_month");
   const [monthKey, setMonthKey] = useState(currentPeriod.monthKey);
+  const [trendMode, setTrendMode] = useState<(typeof trendModes)[number]>("合計");
   const referenceDate = useMemo(() => getReferenceDateFromMonthKey(monthKey), [monthKey]);
   const period = useMemo(() => (currentPeriod.monthKey === monthKey ? currentPeriod : getMonthBudgetPeriod(referenceDate)), [currentPeriod, monthKey, referenceDate]);
   const scopedData = useMemo(() => getMonthScopedData(data, referenceDate), [data, referenceDate]);
   const totals = useMemo(() => getTotals(data, referenceDate), [data, referenceDate]);
   const comparison = useMemo(() => getMonthlyComparison(data, target, referenceDate), [data, target, referenceDate]);
   const categoryBudgetItems = useMemo(() => getMonthlyCategoryBudgetProgress(data, referenceDate), [data, referenceDate]);
+  const categoryTrend = useMemo(() => getCategoryMonthlyTrend(data, referenceDate), [data, referenceDate]);
   const paymentBreakdown = useMemo(() => getMonthlyPaymentMethodBreakdown(data, referenceDate), [data, referenceDate]);
   const categoryData = useMemo(
     () => groupExpensesByCategory(scopedData.expenses).map((item) => ({ name: getCategory(data, item.categoryId)?.name ?? "未分類", value: item.value })),
@@ -99,8 +103,40 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
 
       {tab === "月別推移" ? (
         <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-black text-ink">月別推移</h2>
-          {data.monthlySummaries.length > 0 || scopedData.expenses.length > 0 ? <MonthlyTrendChart data={getMonthlyTrend(data, referenceDate)} /> : <p className="mt-3 text-sm font-bold text-ink/60">まだ月次履歴がありません</p>}
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-black text-ink">月別推移</h2>
+            <div className="grid grid-cols-2 gap-1 rounded-2xl bg-cream/60 p-1">
+              {trendModes.map((mode) => (
+                <button key={mode} type="button" onClick={() => setTrendMode(mode)} className={trendMode === mode ? "min-h-9 rounded-xl bg-leaf px-3 text-[11px] font-black text-white" : "min-h-9 rounded-xl px-3 text-[11px] font-bold text-ink/60"}>
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+          {data.monthlySummaries.length === 0 && scopedData.expenses.length === 0 ? <p className="mt-3 text-sm font-bold text-ink/60">まだ月次履歴がありません</p> : null}
+          {data.monthlySummaries.length > 0 || scopedData.expenses.length > 0 ? (
+            trendMode === "合計" ? (
+              <MonthlyTrendChart data={getMonthlyTrend(data, referenceDate)} />
+            ) : categoryTrend.isEmpty ? (
+              <p className="mt-3 text-sm font-bold text-ink/60">まだ変動費の支出がありません</p>
+            ) : (
+              <>
+                <p className="mt-2 text-xs font-bold text-ink/50">変動費のカテゴリ別。直近12か月、上位6カテゴリ以外は「その他」にまとめています。</p>
+                <CategoryTrendChart rows={categoryTrend.rows} series={categoryTrend.series} />
+                <div className="mt-3 grid gap-2">
+                  {categoryTrend.series.map((item) => (
+                    <div key={item.key} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 px-3 py-2 text-sm font-bold">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="truncate">{item.name}</span>
+                      </span>
+                      <span className="shrink-0 text-ink">12か月計 {yen(item.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          ) : null}
         </section>
       ) : null}
 
