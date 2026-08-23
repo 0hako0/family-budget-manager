@@ -136,10 +136,12 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
             <p className="text-sm font-bold text-leaf">月締めプレビュー</p>
             <p className="mt-2 text-3xl font-black text-ink">{comparison.current.month}</p>
             <p className="mt-1 text-sm text-ink/60">残額 {yen(comparison.current.remainingBudget)} / 着地 {yen(comparison.current.landingResult)}</p>
+            {comparison.current.closedAt ? <p className="mt-1 text-xs font-bold text-ink/45">締め済み: {comparison.current.closedAt.slice(0, 10).replaceAll("-", "/")}</p> : null}
             <form action={closeCurrentMonth} className="mt-3 grid gap-3">
               <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+              <input type="hidden" name="targetMonth" value={monthKey} />
               <textarea className="min-h-20 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base outline-none transition focus:border-leaf" name="memo" placeholder="今月のメモ" />
-              <FormSubmitButton idleLabel="この月を締める" pendingLabel="保存中..." />
+              <FormSubmitButton idleLabel={comparison.current.closedAt ? "この月を締め直す" : "この月を締める"} pendingLabel="保存中..." />
             </form>
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">

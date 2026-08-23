@@ -113,7 +113,9 @@ export async function closeCurrentMonth(formData: FormData) {
   const { supabase } = await requireUser();
   const householdGroupId = value(formData, "householdGroupId");
   const data = await getBudgetData();
-  const summary = createCurrentMonthlySummary(data);
+  // レポートで表示中の月を締める。未指定なら今月。
+  const targetMonth = /^\d{4}-\d{2}$/.test(value(formData, "targetMonth")) ? value(formData, "targetMonth") : getCurrentMonthPeriodJST().monthKey;
+  const summary = createCurrentMonthlySummary(data, getReferenceDateFromMonthKey(targetMonth));
   if (!householdGroupId) redirect("/reports?error=家計グループを確認できませんでした");
 
   const { error } = await supabase.from("monthly_summaries").upsert(

@@ -494,8 +494,17 @@ export function createCurrentMonthlySummary(data: BudgetData, referenceDate = ne
   };
 }
 
+/**
+ * その月のサマリー。締め済みなら保存済みスナップショットを優先し、
+ * 未締めの月だけ現在データから下書きを作る。
+ */
+export function getMonthlySummary(data: BudgetData, referenceDate = new Date()) {
+  const monthKey = getMonthBudgetPeriod(referenceDate).monthKey;
+  return data.monthlySummaries.find((summary) => summary.month === monthKey) ?? createCurrentMonthlySummary(data, referenceDate);
+}
+
 export function getMonthlyTrend(data: BudgetData, referenceDate = new Date()) {
-  const current = createCurrentMonthlySummary(data, referenceDate);
+  const current = getMonthlySummary(data, referenceDate);
   const summaries = data.monthlySummaries.filter((summary) => summary.month !== current.month);
   return [...summaries, current]
     .slice()
@@ -547,7 +556,7 @@ function average(values: number[]) {
 }
 
 export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "last_month", referenceDate = new Date()) {
-  const current = createCurrentMonthlySummary(data, referenceDate);
+  const current = getMonthlySummary(data, referenceDate);
   const compared = getComparisonSummary(data, target, referenceDate);
   const rows = [
     ["収入", current.incomeTotal, compared?.incomeTotal ?? 0],
