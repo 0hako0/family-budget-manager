@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createServerSupabaseClient } from "./supabase/server";
+import { getCurrentMonthPeriodJST, shiftMonthKey } from "./date";
 import type {
   ActivePeriod,
   BudgetData,
@@ -50,6 +51,31 @@ export const emptyBudgetData: BudgetData = {
   notificationRules: []
 };
 
+/** 明細系テーブルの取得上限（Supabaseは1リクエストの返却行数に上限がある）。 */
+const PAGE_SIZE = 1000;
+const MAX_PAGES = 20;
+/** 明細をさかのぼって読む月数。これより古い月はレポートの月次サマリーで参照する。 */
+const DETAIL_MONTHS = 25;
+
+type PagedQuery = {
+  range: (from: number, to: number) => PromiseLike<{ data: Array<Record<string, unknown>> | null; error: unknown }>;
+};
+
+/**
+ * ページングしながら全行を読む。1リクエストで取り切れる前提にすると、
+ * 上限を超えた分がエラーなく欠落して合計額が過少になる。
+ */
+async function fetchAllRows(buildQuery: () => PagedQuery) {
+  const rows: Array<Record<string, unknown>> = [];
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const { data, error } = await buildQuery().range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error || !data) break;
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 export const getBudgetData = cache(async (): Promise<BudgetData> => {
   const supabase = createServerSupabaseClient();
   const {
@@ -69,6 +95,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
   if (!membership) return { ...emptyBudgetData, currentUserId: user.id };
 
   const groupId = String(membership.household_group_id);
+  const detailStartDate = `${shiftMonthKey(getCurrentMonthPeriodJST().monthKey, -(DETAIL_MONTHS - 1))}-01`;
   const [
     groupResult,
     membersResult,
@@ -77,9 +104,9 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     savingsResult,
     fixedCostsResult,
     loansResult,
-    expensesResult,
+    expenseRows,
     paymentMethodsResult,
-    walletResult,
+    walletRows,
     savingGoalsResult,
     summariesResult
   ] = await Promise.all([
@@ -90,9 +117,9 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     supabase.from("savings").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
     supabase.from("fixed_costs").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
     supabase.from("loans").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
-    supabase.from("expenses").select("*").eq("household_group_id", groupId).order("spent_on", { ascending: false }),
+    fetchAllRows(() => supabase.from("expenses").select("*").eq("household_group_id", groupId).gte("spent_on", detailStartDate).order("spent_on", { ascending: false })),
     supabase.from("common_payment_methods").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
-    supabase.from("shared_wallet_transactions").select("*").eq("household_group_id", groupId).order("occurred_on", { ascending: false }),
+    fetchAllRows(() => supabase.from("shared_wallet_transactions").select("*").eq("household_group_id", groupId).order("occurred_on", { ascending: false })),
     supabase.from("saving_goals").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
     supabase.from("monthly_summaries").select("*").eq("household_group_id", groupId).order("target_month", { ascending: false })
   ]);
@@ -175,7 +202,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       memo: String(loan.memo ?? ""),
       ...mapActivePeriod(loan)
     })),
-    expenses: (expensesResult.data ?? []).map((expense: Record<string, unknown>) => ({
+    expenses: expenseRows.map((expense: Record<string, unknown>) => ({
       id: String(expense.id),
       amount: Number(expense.amount ?? 0),
       date: String(expense.spent_on ?? ""),
@@ -203,7 +230,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       withdrawalAccount: row.withdrawal_account ? String(row.withdrawal_account) : undefined,
       archived: Boolean(row.archived)
     })),
-    sharedWalletTransactions: (walletResult.data ?? []).map((row: Record<string, unknown>) => ({
+    sharedWalletTransactions: walletRows.map((row: Record<string, unknown>) => ({
       id: String(row.id),
       type: mapSharedWalletTransactionType(String(row.type ?? "deposit")),
       amount: Number(row.amount ?? 0),

@@ -36,14 +36,12 @@ function activePeriod(formData: FormData, fallbackStartMonth = getCurrentMonthPe
 
 async function requireUser() {
   const supabase = createServerSupabaseClient();
-  const {
-    data: { session }
-  } = await supabase.auth.getSession();
+  // getUser() はトークンをAuthサーバーで検証するため、getSession() の併用は不要。
   const {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!session || !user) redirect(`/login?error=${encodeURIComponent(toJapaneseError("not authenticated"))}`);
+  if (!user) redirect(`/login?error=${encodeURIComponent(toJapaneseError("not authenticated"))}`);
   return { supabase, user };
 }
 
