@@ -39,10 +39,11 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
         <p className="mt-1 text-4xl font-black text-ink">{yen(insight.summary.variableExpenseTotal)}</p>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-ink/55">
           <p>固定費 {yen(insight.summary.fixedCostTotal)}</p>
+          <p>ローン {yen(insight.summary.loanTotal)}</p>
           <p>共通クレカ {yen(insight.summary.sharedCreditCardTotal)}</p>
           <p>支出件数 {insight.summary.expenseCount}件</p>
           <p>
-            先月比{" "}
+            先月比（合計）{" "}
             {insight.summary.previousDiffRate === undefined
               ? "-"
               : `${insight.summary.previousDiffRate <= 0 ? "▲" : "+"}${Math.abs(Math.round(insight.summary.previousDiffRate * 100))}%`}

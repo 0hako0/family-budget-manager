@@ -67,9 +67,11 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-ink/55">
               <p>変動費 {yen(monthlyExpense.variableExpenseTotal)}</p>
               <p>固定費 {yen(monthlyExpense.fixedCostTotal)}</p>
+              <p>ローン {yen(monthlyExpense.loanTotal)}</p>
               <p>共通クレカ {yen(monthlyExpense.sharedCreditCardTotal)}</p>
               <p>{monthlyExpense.expenseCount}件</p>
             </div>
+            <p className="mt-2 text-[11px] font-bold text-ink/40">変動費＋固定費＋ローン返済の合計です（貯金・投資の積立は含みません）。共通クレカは変動費の内訳です。</p>
             {spendingInsight.summary.variableExpenseTotal > 0 ? (
               <div className="mt-3 grid gap-3">
                 <div className="rounded-2xl bg-white/70 p-3">

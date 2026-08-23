@@ -262,13 +262,19 @@ export function getMonthlyExpenseSummary(data: BudgetData, referenceDate = new D
   const previousScoped = getMonthScopedData(data, previousReferenceDate);
   const variableExpenseTotal = sumBy(scoped.expenses, (expense) => expense.amount);
   const fixedCostTotal = sumBy(scoped.fixedCosts, (cost) => cost.amount);
+  const loanTotal = sumBy(scoped.loans, (loan) => loan.monthlyPayment);
   const sharedCreditCardTotal = sumBy(scoped.expenses.filter(isSharedCreditCardExpense), (expense) => expense.amount);
-  const total = variableExpenseTotal + fixedCostTotal;
-  const previousTotal = sumBy(previousScoped.expenses, (expense) => expense.amount) + sumBy(previousScoped.fixedCosts, (cost) => cost.amount);
+  // 予算消化率・月末見込みと定義を揃えるため、ローン返済も支出に含める（貯金・投資は支出ではないので含めない）。
+  const total = variableExpenseTotal + fixedCostTotal + loanTotal;
+  const previousTotal =
+    sumBy(previousScoped.expenses, (expense) => expense.amount) +
+    sumBy(previousScoped.fixedCosts, (cost) => cost.amount) +
+    sumBy(previousScoped.loans, (loan) => loan.monthlyPayment);
   return {
     total,
     variableExpenseTotal,
     fixedCostTotal,
+    loanTotal,
     sharedCreditCardTotal,
     expenseCount: scoped.expenses.length,
     previousTotal,
