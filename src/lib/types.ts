@@ -71,6 +71,7 @@ export type Saving = ActivePeriod & {
   id: string;
   name: string;
   amount: number;
+  paidOn: number;
   categoryId: string;
   recurring: boolean;
 };

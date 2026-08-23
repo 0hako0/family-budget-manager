@@ -229,6 +229,7 @@ create table if not exists public.savings (
   name text not null,
   amount integer not null check (amount >= 0),
   saving_type text not null default 'other' check (saving_type in ('cash_saving', 'nisa', 'mutual_fund', 'travel', 'car', 'special', 'other')),
+  paid_on integer not null default 1 check (paid_on between 1 and 31),
   starts_on date,
   ends_on date,
   category_id uuid references public.categories(id) on delete set null,
@@ -272,6 +273,9 @@ create table if not exists public.loans (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- 既存DB向け（積立の引き落とし日）。詳細は supabase/migrations/018_saving_paid_on.sql を参照。
+alter table public.savings add column if not exists paid_on integer not null default 1;
 
 -- 既存DB向け（適用期間）。詳細は supabase/migrations/017_item_active_period.sql を参照。
 alter table public.incomes add column if not exists starts_on date;

@@ -174,6 +174,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       id: String(saving.id),
       name: String(saving.name ?? ""),
       amount: Number(saving.amount ?? 0),
+      paidOn: Number(saving.paid_on ?? 1),
       categoryId: String(saving.category_id ?? ""),
       recurring: Boolean(saving.recurring),
       ...mapActivePeriod(saving)

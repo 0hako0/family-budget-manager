@@ -92,7 +92,7 @@ function buildRows(data: BudgetData, dataset: Dataset, period: Period, startDate
   if (dataset === "loans") {
     return data.loans.map((item) => ({ name: item.name, monthlyPayment: item.monthlyPayment, paidOn: item.paidOn, remainingBalance: item.remainingBalance, interestRate: item.interestRate, payoffDate: item.payoffDate, memo: item.memo }));
   }
-  return data.savings.map((item) => ({ name: item.name, amount: item.amount, recurring: item.recurring }));
+  return data.savings.map((item) => ({ name: item.name, amount: item.amount, paidOn: item.paidOn, recurring: item.recurring }));
 }
 
 function getRange(period: Period, startDate: string, endDate: string) {

@@ -160,7 +160,7 @@ function SavingPanel({ data, categories }: { data: BudgetData; categories: Array
       </details>
       <ItemList empty="まだ貯金・投資がありません">
         {data.savings.map((saving) => (
-          <ItemCard key={saving.id} title={saving.name} amount={yen(saving.amount)} meta={`${getCategory(data, saving.categoryId)?.name ?? "未分類"} / ${saving.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"}`}>
+          <ItemCard key={saving.id} title={saving.name} amount={yen(saving.amount)} meta={`${getCategory(data, saving.categoryId)?.name ?? "未分類"} / 毎月${saving.paidOn}日 / 次回 ${nextMonthlyDate(saving.paidOn)} / ${saving.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"}`}>
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
               <div className="mt-3"><SavingForm data={data} categories={categories} saving={saving} /></div>
@@ -179,6 +179,7 @@ function SavingForm({ data, categories, saving }: { data: BudgetData; categories
       <HiddenBase data={data} id={saving?.id} />
       <Field label="名称"><input className={inputClass} name="name" defaultValue={saving?.name ?? ""} required /></Field>
       <Field label="金額"><input className={inputClass} name="amount" type="number" inputMode="numeric" defaultValue={saving?.amount ?? ""} required /></Field>
+      <Field label="引き落とし日"><input className={inputClass} name="paidOn" type="number" inputMode="numeric" min={1} max={31} defaultValue={saving?.paidOn ?? 1} /></Field>
       <Field label="カテゴリ"><CategorySelect categories={categories} defaultValue={saving?.categoryId} /></Field>
       <Field label="毎月繰り返し"><RecurringSelect defaultValue={saving?.recurring} /></Field>
       <ActivePeriodFields item={saving} />

@@ -356,6 +356,7 @@ export async function createSaving(formData: FormData) {
     household_group_id: householdGroupId,
     name,
     amount,
+    paid_on: Math.min(31, Math.max(1, numberValue(formData, "paidOn", 1))),
     saving_type: "other",
     category_id: value(formData, "categoryId") || null,
     recurring: value(formData, "recurring") !== "false",

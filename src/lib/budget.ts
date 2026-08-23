@@ -458,7 +458,7 @@ export function getUpcomingPayments(data: BudgetData, referenceDate = new Date()
   getPlannedIncomes(data, referenceDate).forEach((income) => rows.push({ date: income.paidOn, type: "income", label: `給与・収入: ${income.name}`, amount: income.amount, tone: "income" }));
   getActiveFixedCosts(data, referenceDate).forEach((cost) => rows.push({ date: dateFromMonthDay(period.monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
   getActiveLoans(data, referenceDate).forEach((loan) => rows.push({ date: dateFromMonthDay(period.monthKey, loan.paidOn), type: "loan", label: `ローン: ${loan.name}`, amount: loan.monthlyPayment, tone: "outflow" }));
-  getActiveSavings(data, referenceDate).forEach((saving) => rows.push({ date: period.startDate, type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
+  getActiveSavings(data, referenceDate).forEach((saving) => rows.push({ date: dateFromMonthDay(period.monthKey, saving.paidOn), type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
   getCreditCardBillingSummaries(data, referenceDate).forEach((summary) => rows.push({ date: summary.withdrawalDate, type: "credit_card", label: `クレカ引落: ${summary.card.name}`, amount: summary.nextBillingAmount, tone: "outflow" }));
   return rows.filter((row) => row.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
 }

@@ -115,6 +115,8 @@ check("月別推移はカテゴリ別に切替できる", budget.includes("funct
 check("締め済みの月は保存済みサマリーを使う", budget.includes("function getMonthlySummary") && actions.includes("targetMonth"));
 check("明細取得はページング", read("src/lib/data.ts").includes("function fetchAllRows") && read("src/lib/data.ts").includes("detailStartDate"));
 
+check("積立に引き落とし日がある", budget.includes("dateFromMonthDay(period.monthKey, saving.paidOn)") && fixedTabs.includes("引き落とし日") && read("supabase/migrations/018_saving_paid_on.sql").includes("paid_on") && schema.includes("alter table public.savings add column if not exists paid_on integer not null default 1;"));
+
 check("Security Advisor: no always-true policies in schema", !/using\s*\(\s*true\s*\)|with check\s*\(\s*true\s*\)/i.test(schema));
 check("Security Advisor: set_updated_at has fixed search_path", /create or replace function public\.set_updated_at\(\)[\s\S]*set search_path = public/i.test(schema));
 check(
