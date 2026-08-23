@@ -214,6 +214,8 @@ create table if not exists public.incomes (
   amount integer not null check (amount >= 0),
   paid_on date not null,
   earner_name text not null,
+  starts_on date,
+  ends_on date,
   income_type text not null default 'other' check (income_type in ('salary', 'side_income', 'bonus', 'temporary', 'other')),
   category_id uuid references public.categories(id) on delete set null,
   recurring boolean not null default true,
@@ -227,6 +229,8 @@ create table if not exists public.savings (
   name text not null,
   amount integer not null check (amount >= 0),
   saving_type text not null default 'other' check (saving_type in ('cash_saving', 'nisa', 'mutual_fund', 'travel', 'car', 'special', 'other')),
+  starts_on date,
+  ends_on date,
   category_id uuid references public.categories(id) on delete set null,
   recurring boolean not null default true,
   created_at timestamptz not null default now(),
@@ -241,6 +245,8 @@ create table if not exists public.fixed_costs (
   amount integer not null check (amount >= 0),
   paid_on integer not null check (paid_on between 1 and 31),
   payer_name text not null,
+  starts_on date,
+  ends_on date,
   category text not null default 'other' check (category in ('rent', 'utilities', 'telecom', 'insurance', 'subscription', 'car', 'tax', 'other')),
   category_id uuid references public.categories(id) on delete set null,
   recurring boolean not null default true,
@@ -259,11 +265,23 @@ create table if not exists public.loans (
   remaining_balance integer not null check (remaining_balance >= 0),
   interest_rate numeric(5, 2) not null default 0,
   payoff_date date,
+  starts_on date,
+  ends_on date,
   has_bonus_payment boolean not null default false,
   memo text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- 既存DB向け（適用期間）。詳細は supabase/migrations/017_item_active_period.sql を参照。
+alter table public.incomes add column if not exists starts_on date;
+alter table public.incomes add column if not exists ends_on date;
+alter table public.savings add column if not exists starts_on date;
+alter table public.savings add column if not exists ends_on date;
+alter table public.fixed_costs add column if not exists starts_on date;
+alter table public.fixed_costs add column if not exists ends_on date;
+alter table public.loans add column if not exists starts_on date;
+alter table public.loans add column if not exists ends_on date;
 
 create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),

@@ -7,7 +7,7 @@ import {
   isDateInMonthJST,
   shiftMonthKey
 } from "./date";
-import type { BudgetData, BurdenRule, CategoryKind, CompareTarget, Expense, Income, MonthlySummary, PaymentMethodType } from "./types";
+import type { ActivePeriod, BudgetData, BurdenRule, CategoryKind, CompareTarget, Expense, Income, MonthlySummary, PaymentMethodType } from "./types";
 
 export function sumBy<T>(items: T[], getValue: (item: T) => number) {
   return items.reduce((total, item) => total + getValue(item), 0);
@@ -55,9 +55,40 @@ export function getRemainingDays(referenceDate = new Date()) {
   return Math.min(period.totalDays, Math.max(1, period.totalDays - elapsedDays + 1));
 }
 
+/**
+ * 固定項目がその月に計上されるかどうか。
+ * 適用期間（startsOn/endsOn）が未設定の既存データは、これまでどおり常に有効として扱う。
+ * 単発（recurring=false）の項目は開始月にだけ計上する。
+ */
+export function isItemActiveInMonth(item: ActivePeriod & { recurring?: boolean }, monthKey: string) {
+  const startMonth = item.startsOn?.slice(0, 7);
+  const endMonth = item.endsOn?.slice(0, 7);
+  if (item.recurring === false) return startMonth === undefined || startMonth === monthKey;
+  if (startMonth && monthKey < startMonth) return false;
+  if (endMonth && monthKey > endMonth) return false;
+  return true;
+}
+
+export function getActiveFixedCosts(data: BudgetData, referenceDate = new Date()) {
+  const monthKey = getMonthBudgetPeriod(referenceDate).monthKey;
+  return data.fixedCosts.filter((cost) => isItemActiveInMonth(cost, monthKey));
+}
+
+export function getActiveSavings(data: BudgetData, referenceDate = new Date()) {
+  const monthKey = getMonthBudgetPeriod(referenceDate).monthKey;
+  return data.savings.filter((saving) => isItemActiveInMonth(saving, monthKey));
+}
+
+export function getActiveLoans(data: BudgetData, referenceDate = new Date()) {
+  const monthKey = getMonthBudgetPeriod(referenceDate).monthKey;
+  // 完済予定日を過ぎたローンは返済が発生しない。
+  return data.loans.filter((loan) => isItemActiveInMonth(loan, monthKey) && (!loan.payoffDate || monthKey <= loan.payoffDate.slice(0, 7)));
+}
+
 export function getPlannedIncomes(data: BudgetData, referenceDate = new Date()): Income[] {
   const period = getMonthBudgetPeriod(referenceDate);
   return data.incomes
+    .filter((income) => isItemActiveInMonth({ ...income, startsOn: income.startsOn ?? (income.recurring ? income.paidOn : undefined) }, period.monthKey))
     .map((income) => {
       if (!income.recurring) return income;
       const day = Math.min(Number(income.paidOn.slice(8, 10)) || 1, getLastDayOfMonth(period.year, period.month));
@@ -70,9 +101,9 @@ export function getMonthScopedData(data: BudgetData, referenceDate = new Date())
   return {
     ...data,
     incomes: getPlannedIncomes(data, referenceDate),
-    savings: data.savings,
-    fixedCosts: data.fixedCosts,
-    loans: data.loans,
+    savings: getActiveSavings(data, referenceDate),
+    fixedCosts: getActiveFixedCosts(data, referenceDate),
+    loans: getActiveLoans(data, referenceDate),
     expenses: data.expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate)),
     sharedWalletTransactions: data.sharedWalletTransactions.filter((row) => isDateInMonthJST(row.occurredOn, referenceDate))
   };
@@ -419,9 +450,9 @@ export function getUpcomingPayments(data: BudgetData, referenceDate = new Date()
   const today = getTodayJSTDateString(referenceDate);
   const rows: Array<{ date: string; type: "income" | "fixed_cost" | "loan" | "credit_card" | "saving"; label: string; amount: number; tone?: "income" | "outflow" }> = [];
   getPlannedIncomes(data, referenceDate).forEach((income) => rows.push({ date: income.paidOn, type: "income", label: `給与・収入: ${income.name}`, amount: income.amount, tone: "income" }));
-  data.fixedCosts.forEach((cost) => rows.push({ date: dateFromMonthDay(period.monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
-  data.loans.forEach((loan) => rows.push({ date: dateFromMonthDay(period.monthKey, loan.paidOn), type: "loan", label: `ローン: ${loan.name}`, amount: loan.monthlyPayment, tone: "outflow" }));
-  data.savings.forEach((saving) => rows.push({ date: period.startDate, type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
+  getActiveFixedCosts(data, referenceDate).forEach((cost) => rows.push({ date: dateFromMonthDay(period.monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
+  getActiveLoans(data, referenceDate).forEach((loan) => rows.push({ date: dateFromMonthDay(period.monthKey, loan.paidOn), type: "loan", label: `ローン: ${loan.name}`, amount: loan.monthlyPayment, tone: "outflow" }));
+  getActiveSavings(data, referenceDate).forEach((saving) => rows.push({ date: period.startDate, type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
   getCreditCardBillingSummaries(data, referenceDate).forEach((summary) => rows.push({ date: summary.withdrawalDate, type: "credit_card", label: `クレカ引落: ${summary.card.name}`, amount: summary.nextBillingAmount, tone: "outflow" }));
   return rows.filter((row) => row.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
 }

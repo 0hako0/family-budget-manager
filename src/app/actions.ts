@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createCurrentMonthlySummary } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
-import { getCurrentMonthPeriodJST, getReferenceDateFromMonthKey, getTodayJSTDateString, shiftMonthKey } from "@/lib/date";
+import { getCurrentMonthPeriodJST, getLastDayOfMonth, getReferenceDateFromMonthKey, getTodayJSTDateString, shiftMonthKey } from "@/lib/date";
 import { toJapaneseError } from "@/lib/error-messages";
 import { normalizeInviteCode } from "@/lib/invite-code";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -21,6 +21,17 @@ function numberValue(formData: FormData, key: string, fallback = 0) {
 
 function checked(formData: FormData, key: string) {
   return formData.get(key) === "on";
+}
+
+/** 月入力(YYYY-MM)を適用開始日・終了日に変換する。開始は月初、終了は月末。 */
+function activePeriod(formData: FormData, fallbackStartMonth = getCurrentMonthPeriodJST().monthKey) {
+  const startMonth = value(formData, "startsOn").slice(0, 7) || fallbackStartMonth;
+  const endMonth = value(formData, "endsOn").slice(0, 7);
+  const [endYear, endMonthNumber] = endMonth.split("-").map(Number);
+  return {
+    starts_on: `${startMonth}-01`,
+    ends_on: endMonth ? `${endMonth}-${String(getLastDayOfMonth(endYear, endMonthNumber)).padStart(2, "0")}` : null
+  };
 }
 
 async function requireUser() {
@@ -326,7 +337,8 @@ export async function createIncome(formData: FormData) {
     earner_name: value(formData, "earner"),
     income_type: "other",
     category_id: value(formData, "categoryId") || null,
-    recurring: value(formData, "recurring") !== "false"
+    recurring: value(formData, "recurring") !== "false",
+    ...activePeriod(formData, (value(formData, "paidOn") || getTodayJSTDateString()).slice(0, 7))
   };
   const { error } = id ? await supabase.from("incomes").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("incomes").insert(payload);
   if (error) redirect(`/incomes?error=${encodeURIComponent(toJapaneseError(error.message))}`);
@@ -340,7 +352,15 @@ export async function createSaving(formData: FormData) {
   const name = value(formData, "name");
   const amount = numberValue(formData, "amount");
   if (!householdGroupId || !name || !amount) redirect("/savings?error=名称と金額を入力してください");
-  const payload = { household_group_id: householdGroupId, name, amount, saving_type: "other", category_id: value(formData, "categoryId") || null, recurring: value(formData, "recurring") !== "false" };
+  const payload = {
+    household_group_id: householdGroupId,
+    name,
+    amount,
+    saving_type: "other",
+    category_id: value(formData, "categoryId") || null,
+    recurring: value(formData, "recurring") !== "false",
+    ...activePeriod(formData)
+  };
   const { error } = id ? await supabase.from("savings").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("savings").insert(payload);
   if (error) redirect(`/savings?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
@@ -362,9 +382,10 @@ export async function createFixedCost(formData: FormData) {
     payer_name: value(formData, "payer"),
     category: "other",
     category_id: value(formData, "categoryId") || null,
-    recurring: true,
+    recurring: value(formData, "recurring") !== "false",
     review_target: checked(formData, "reviewTarget"),
-    review_memo: value(formData, "reviewMemo")
+    review_memo: value(formData, "reviewMemo"),
+    ...activePeriod(formData)
   };
   const { error } = id ? await supabase.from("fixed_costs").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("fixed_costs").insert(payload);
   if (error) redirect(`/fixed-costs?error=${encodeURIComponent(toJapaneseError(error.message))}`);
@@ -387,7 +408,8 @@ export async function createLoan(formData: FormData) {
     interest_rate: numberValue(formData, "interestRate"),
     payoff_date: value(formData, "payoffDate") || null,
     has_bonus_payment: value(formData, "hasBonusPayment") === "true",
-    memo: value(formData, "memo")
+    memo: value(formData, "memo"),
+    ...activePeriod(formData)
   };
   const { error } = id ? await supabase.from("loans").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("loans").insert(payload);
   if (error) redirect(`/loans?error=${encodeURIComponent(toJapaneseError(error.message))}`);

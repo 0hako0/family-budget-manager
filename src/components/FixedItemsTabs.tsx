@@ -2,10 +2,10 @@
 
 import React, { useState } from "react";
 import { createFixedCost, createIncome, createLoan, createSaving, deleteFixedCost, deleteIncome, deleteLoan, deleteSaving } from "@/app/actions";
-import { getCategory, getPlannedIncomes } from "@/lib/budget";
+import { getActiveFixedCosts, getActiveLoans, getActiveSavings, getCategory, getPlannedIncomes } from "@/lib/budget";
 import { getCurrentMonthPeriodJST, getLastDayOfMonth, getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
-import type { BudgetData, FixedCost, Income, Loan, Saving } from "@/lib/types";
+import type { ActivePeriod, BudgetData, FixedCost, Income, Loan, Saving } from "@/lib/types";
 import { FormSubmitButton } from "./FormSubmitButton";
 
 const inputClass = "mobile-input";
@@ -53,11 +53,11 @@ function PanelSummary({ items }: { items: Array<{ label: string; value: string; 
 }
 
 function FixedCostPanel({ data, categories }: { data: BudgetData; categories: Array<{ id: string; name: string }> }) {
-  const total = data.fixedCosts.reduce((sum, cost) => sum + cost.amount, 0);
+  const total = getActiveFixedCosts(data).reduce((sum, cost) => sum + cost.amount, 0);
   const reviewTargets = data.fixedCosts.filter((cost) => cost.reviewTarget);
   return (
     <section className="grid gap-4">
-      <PanelSummary items={[{ label: "月額合計", value: yen(total) }, { label: "年間換算", value: yen(total * 12) }, { label: "見直し候補", value: `${reviewTargets.length}件`, tone: "accent" }]} />
+      <PanelSummary items={[{ label: "今月の月額合計", value: yen(total) }, { label: "年間換算", value: yen(total * 12) }, { label: "見直し候補", value: `${reviewTargets.length}件`, tone: "accent" }]} />
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">固定費を登録</summary>
         <div className="mt-3">
@@ -68,6 +68,7 @@ function FixedCostPanel({ data, categories }: { data: BudgetData; categories: Ar
         {data.fixedCosts.map((cost) => (
           <ItemCard key={cost.id} title={cost.name} amount={yen(cost.amount)} meta={`${getCategory(data, cost.categoryId)?.name ?? "未分類"} / 毎月${cost.paidOn}日 / 次回 ${nextMonthlyDate(cost.paidOn)} / ${cost.payer || "支払者未設定"}`}>
             {cost.reviewMemo ? <p>{cost.reviewMemo}</p> : null}
+            <p>{cost.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"} / {activePeriodLabel(cost)}</p>
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
               <div className="mt-3">
@@ -92,6 +93,8 @@ function FixedCostForm({ data, categories, cost }: { data: BudgetData; categorie
       <Field label="支払者"><PayerSelect data={data} name="payer" defaultValue={cost?.payer} /></Field>
       <Field label="カテゴリ"><CategorySelect categories={categories} defaultValue={cost?.categoryId} /></Field>
       <Field label="見直しメモ"><input className={inputClass} name="reviewMemo" defaultValue={cost?.reviewMemo ?? ""} /></Field>
+      <Field label="毎月繰り返し"><RecurringSelect defaultValue={cost?.recurring ?? true} /></Field>
+      <ActivePeriodFields item={cost} />
       <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink">
         <input name="reviewTarget" type="checkbox" defaultChecked={cost?.reviewTarget ?? false} />
         見直し候補にする
@@ -116,7 +119,7 @@ function IncomePanel({ data, categories }: { data: BudgetData; categories: Array
           const planned = plannedIncomes.find((item) => item.id === income.id);
           return (
             <ItemCard key={income.id} title={income.name} amount={yen(income.amount)} meta={`${income.recurring ? `毎月${Number(income.paidOn.slice(8, 10))}日 / 次回 ${planned?.paidOn ?? "対象外"}` : income.paidOn} / ${income.earner || "収入者未設定"} / ${getCategory(data, income.categoryId)?.name ?? "未分類"}`}>
-              <p>{income.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"}</p>
+              <p>{income.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"} / {activePeriodLabel(income)}</p>
               <details className="mt-3 rounded-2xl bg-white p-3">
                 <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
                 <div className="mt-3"><IncomeForm data={data} categories={categories} income={income} /></div>
@@ -140,16 +143,17 @@ function IncomeForm({ data, categories, income }: { data: BudgetData; categories
       <Field label="収入者"><PayerSelect data={data} name="earner" defaultValue={income?.earner} includeSharedWallet={false} /></Field>
       <Field label="カテゴリ"><CategorySelect categories={categories} defaultValue={income?.categoryId} /></Field>
       <Field label="毎月繰り返し"><RecurringSelect defaultValue={income?.recurring} /></Field>
+      <ActivePeriodFields item={income} />
       <FormSubmitButton idleLabel={income ? "更新する" : "登録する"} pendingLabel="保存中..." />
     </form>
   );
 }
 
 function SavingPanel({ data, categories }: { data: BudgetData; categories: Array<{ id: string; name: string }> }) {
-  const total = data.savings.reduce((sum, saving) => sum + saving.amount, 0);
+  const total = getActiveSavings(data).reduce((sum, saving) => sum + saving.amount, 0);
   return (
     <section className="grid gap-4">
-      <PanelSummary items={[{ label: "貯金・投資合計", value: yen(total), tone: "accent" }]} />
+      <PanelSummary items={[{ label: "今月の貯金・投資合計", value: yen(total), tone: "accent" }]} />
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">貯金・投資を登録</summary>
         <div className="mt-3"><SavingForm data={data} categories={categories} /></div>
@@ -177,17 +181,18 @@ function SavingForm({ data, categories, saving }: { data: BudgetData; categories
       <Field label="金額"><input className={inputClass} name="amount" type="number" inputMode="numeric" defaultValue={saving?.amount ?? ""} required /></Field>
       <Field label="カテゴリ"><CategorySelect categories={categories} defaultValue={saving?.categoryId} /></Field>
       <Field label="毎月繰り返し"><RecurringSelect defaultValue={saving?.recurring} /></Field>
+      <ActivePeriodFields item={saving} />
       <FormSubmitButton idleLabel={saving ? "更新する" : "登録する"} pendingLabel="保存中..." />
     </form>
   );
 }
 
 function LoanPanel({ data }: { data: BudgetData }) {
-  const monthlyTotal = data.loans.reduce((sum, loan) => sum + loan.monthlyPayment, 0);
+  const monthlyTotal = getActiveLoans(data).reduce((sum, loan) => sum + loan.monthlyPayment, 0);
   const balanceTotal = data.loans.reduce((sum, loan) => sum + loan.remainingBalance, 0);
   return (
     <section className="grid gap-4">
-      <PanelSummary items={[{ label: "毎月返済額", value: yen(monthlyTotal) }, { label: "残債合計", value: yen(balanceTotal), tone: "accent" }]} />
+      <PanelSummary items={[{ label: "今月の返済額", value: yen(monthlyTotal) }, { label: "残債合計", value: yen(balanceTotal), tone: "accent" }]} />
       <details className="rounded-[22px] bg-white p-4 shadow-sm">
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">ローンを登録</summary>
         <div className="mt-3"><LoanForm data={data} /></div>
@@ -196,6 +201,7 @@ function LoanPanel({ data }: { data: BudgetData }) {
         {data.loans.map((loan) => (
           <ItemCard key={loan.id} title={loan.name} amount={yen(loan.monthlyPayment)} meta={`毎月${loan.paidOn}日 / 次回 ${nextMonthlyDate(loan.paidOn)} / 残債 ${yen(loan.remainingBalance)} / 金利 ${loan.interestRate}%`}>
             {loan.memo ? <p>{loan.memo}</p> : null}
+            <p>{activePeriodLabel(loan)}</p>
             <details className="mt-3 rounded-2xl bg-white p-3">
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
               <div className="mt-3"><LoanForm data={data} loan={loan} /></div>
@@ -220,6 +226,7 @@ function LoanForm({ data, loan }: { data: BudgetData; loan?: Loan }) {
       <Field label="完済予定日"><input className={inputClass} name="payoffDate" type="date" defaultValue={loan?.payoffDate ?? ""} /></Field>
       <Field label="ボーナス払い"><select className={inputClass} name="hasBonusPayment" defaultValue={String(loan?.hasBonusPayment ?? false)}><option value="false">なし</option><option value="true">あり</option></select></Field>
       <Field label="メモ"><input className={inputClass} name="memo" defaultValue={loan?.memo ?? ""} /></Field>
+      <ActivePeriodFields item={loan} />
       <FormSubmitButton idleLabel={loan ? "更新する" : "登録する"} pendingLabel="保存中..." />
     </form>
   );
@@ -251,6 +258,20 @@ function CategorySelect({ categories, defaultValue = "" }: { categories: Array<{
       {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
     </select>
   );
+}
+
+function ActivePeriodFields({ item }: { item?: ActivePeriod }) {
+  return (
+    <>
+      <Field label="適用開始月"><input className={inputClass} name="startsOn" type="month" defaultValue={item?.startsOn?.slice(0, 7) ?? getCurrentMonthPeriodJST().monthKey} /></Field>
+      <Field label="適用終了月（任意）"><input className={inputClass} name="endsOn" type="month" defaultValue={item?.endsOn?.slice(0, 7) ?? ""} /></Field>
+    </>
+  );
+}
+
+function activePeriodLabel(item: ActivePeriod) {
+  if (!item.startsOn && !item.endsOn) return "適用期間: 全期間";
+  return `適用期間: ${item.startsOn?.slice(0, 7) ?? "開始未設定"}〜${item.endsOn?.slice(0, 7) ?? ""}`;
 }
 
 function RecurringSelect({ defaultValue = true }: { defaultValue?: boolean }) {

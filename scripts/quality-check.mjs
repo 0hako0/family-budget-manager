@@ -106,6 +106,10 @@ check("月末見込みのペース計算は残り日数ベース", budget.includ
 check("月締めの着地は実績ベース", budget.includes("landingResult: totals.actualLanding"));
 check("ホームの月末見込みは基準を表示", home.includes("forecastBasisLabel") && home.includes("今のペース") && home.includes("予算どおり"));
 
+check("固定項目の適用期間を月ごとに判定", budget.includes("function isItemActiveInMonth") && budget.includes("getActiveFixedCosts") && budget.includes("getActiveLoans") && budget.includes("getActiveSavings"));
+check("適用期間を保存・編集できる", actions.includes("function activePeriod") && fixedTabs.includes("適用開始月") && fixedTabs.includes("適用終了月"));
+check("適用期間のマイグレーション", read("supabase/migrations/017_item_active_period.sql").includes("starts_on") && schema.includes("alter table public.fixed_costs add column if not exists starts_on date;"));
+
 check("Security Advisor: no always-true policies in schema", !/using\s*\(\s*true\s*\)|with check\s*\(\s*true\s*\)/i.test(schema));
 check("Security Advisor: set_updated_at has fixed search_path", /create or replace function public\.set_updated_at\(\)[\s\S]*set search_path = public/i.test(schema));
 check(

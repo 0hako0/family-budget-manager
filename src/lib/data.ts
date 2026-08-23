@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createServerSupabaseClient } from "./supabase/server";
 import type {
+  ActivePeriod,
   BudgetData,
   BurdenRule,
   CategoryKind,
@@ -139,14 +140,16 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       paidOn: String(income.paid_on ?? ""),
       earner: String(income.earner_name ?? ""),
       categoryId: String(income.category_id ?? ""),
-      recurring: Boolean(income.recurring)
+      recurring: Boolean(income.recurring),
+      ...mapActivePeriod(income)
     })),
     savings: (savingsResult.data ?? []).map((saving: Record<string, unknown>) => ({
       id: String(saving.id),
       name: String(saving.name ?? ""),
       amount: Number(saving.amount ?? 0),
       categoryId: String(saving.category_id ?? ""),
-      recurring: Boolean(saving.recurring)
+      recurring: Boolean(saving.recurring),
+      ...mapActivePeriod(saving)
     })),
     fixedCosts: (fixedCostsResult.data ?? []).map((cost: Record<string, unknown>) => ({
       id: String(cost.id),
@@ -157,7 +160,8 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       categoryId: String(cost.category_id ?? ""),
       recurring: Boolean(cost.recurring),
       reviewTarget: Boolean(cost.review_target),
-      reviewMemo: String(cost.review_memo ?? "")
+      reviewMemo: String(cost.review_memo ?? ""),
+      ...mapActivePeriod(cost)
     })),
     loans: (loansResult.data ?? []).map((loan: Record<string, unknown>) => ({
       id: String(loan.id),
@@ -168,7 +172,8 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       interestRate: Number(loan.interest_rate ?? 0),
       payoffDate: String(loan.payoff_date ?? ""),
       hasBonusPayment: Boolean(loan.has_bonus_payment),
-      memo: String(loan.memo ?? "")
+      memo: String(loan.memo ?? ""),
+      ...mapActivePeriod(loan)
     })),
     expenses: (expensesResult.data ?? []).map((expense: Record<string, unknown>) => ({
       id: String(expense.id),
@@ -232,6 +237,13 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     notificationRules: []
   };
 });
+
+function mapActivePeriod(row: Record<string, unknown>): ActivePeriod {
+  return {
+    startsOn: row.starts_on ? String(row.starts_on).slice(0, 10) : undefined,
+    endsOn: row.ends_on ? String(row.ends_on).slice(0, 10) : undefined
+  };
+}
 
 function mapBurdenRule(value: string): BurdenRule {
   if (value === "custom") return "custom";

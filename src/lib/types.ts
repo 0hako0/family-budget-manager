@@ -50,7 +50,14 @@ export type HouseholdSettings = {
   homeWidgets: HomeWidgetSettings;
 };
 
-export type Income = {
+export type ActivePeriod = {
+  /** 適用開始日。未設定（適用期間の移行前データ）は「いつでも有効」として扱う。 */
+  startsOn?: string;
+  /** 適用終了日。未設定なら終了なし。 */
+  endsOn?: string;
+};
+
+export type Income = ActivePeriod & {
   id: string;
   name: string;
   amount: number;
@@ -60,7 +67,7 @@ export type Income = {
   recurring: boolean;
 };
 
-export type Saving = {
+export type Saving = ActivePeriod & {
   id: string;
   name: string;
   amount: number;
@@ -68,7 +75,7 @@ export type Saving = {
   recurring: boolean;
 };
 
-export type FixedCost = {
+export type FixedCost = ActivePeriod & {
   id: string;
   name: string;
   amount: number;
@@ -80,7 +87,7 @@ export type FixedCost = {
   reviewMemo?: string;
 };
 
-export type Loan = {
+export type Loan = ActivePeriod & {
   id: string;
   name: string;
   monthlyPayment: number;
