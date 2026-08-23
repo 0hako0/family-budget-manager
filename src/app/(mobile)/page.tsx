@@ -29,6 +29,8 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   const consumption = getBudgetConsumption(data, referenceDate);
   const monthlyExpense = getMonthlyExpenseSummary(data, referenceDate);
   const spendingInsight = getMonthlySpendingInsight(data, referenceDate);
+  const forecast = totals.forecast;
+  const forecastBasisLabel = forecast.basis === "actual" ? "実績" : forecast.basis === "budget" ? "予算基準" : "ペース基準";
   const consumptionPercent = Math.round(consumption.rate * 100);
   const consumptionTone = consumption.rate >= 1 ? "bg-warn" : consumption.rate >= 0.8 ? "bg-amber-400" : "bg-leaf";
   const widgets = data.settings.homeWidgets;
@@ -117,16 +119,31 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
           </div>
 
           {widgets.monthEnd ? (
-            <div className={totals.budgetBasedLanding < 0 ? "rounded-2xl bg-red-50 p-3 text-warn" : "rounded-2xl bg-cream/70 p-3 text-leaf"}>
-              <p className="text-sm font-bold">月末見込み</p>
+            <div className={forecast.expectedLanding < 0 ? "rounded-2xl bg-red-50 p-3 text-warn" : "rounded-2xl bg-cream/70 p-3 text-leaf"}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-bold">月末見込み</p>
+                <p className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-black text-ink/55">{forecastBasisLabel}</p>
+              </div>
               <p className="mt-1 text-xl font-black">
-                {totals.budgetBasedLanding >= 0 ? "+" : ""}
-                {yen(totals.budgetBasedLanding)}
+                {forecast.expectedLanding >= 0 ? "+" : ""}
+                {yen(forecast.expectedLanding)}
               </p>
-              <p className="mt-1 text-xs text-ink/55">
-                現在ペースの場合 {totals.paceBasedLanding >= 0 ? "+" : ""}
-                {yen(totals.paceBasedLanding)}
-              </p>
+              <div className="mt-1 grid gap-0.5 text-xs text-ink/55">
+                <p>
+                  今のペース {forecast.paceBasedLanding >= 0 ? "+" : ""}
+                  {yen(forecast.paceBasedLanding)}
+                  {forecast.remainingDays > 0 ? `（1日あたり ${yen(forecast.dailyPace)} × 残り${forecast.remainingDays}日）` : ""}
+                </p>
+                {forecast.hasCategoryBudget ? (
+                  <p>
+                    予算どおり {forecast.budgetBasedLanding >= 0 ? "+" : ""}
+                    {yen(forecast.budgetBasedLanding)}
+                  </p>
+                ) : (
+                  <p>カテゴリ予算を設定すると、予算どおりの見込みも表示されます。</p>
+                )}
+                {forecast.isEarlyMonth ? <p>月初のためペース予測はぶれやすい状態です。</p> : null}
+              </div>
             </div>
           ) : null}
 

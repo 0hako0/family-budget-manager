@@ -101,6 +101,11 @@ check("ホームの支出カードにカテゴリ・店舗TOPを表示", home.in
 check("支出詳細画面", spendingPage.includes("カテゴリ別内訳") && spendingPage.includes("店舗別内訳") && spendingPage.includes("今月の支出一覧") && spendingPage.includes("支払い方法別"));
 check("支出詳細はタブと検索で全件確認", spendingPage.includes("spending-search") && spendingPage.includes("filteredExpenses.map") && spendingPage.includes("filteredLocations.map"));
 check("支出詳細は店舗と支出一覧を共通集計", budget.includes("function getMonthlySpendingInsight") && budget.includes("locationMap") && budget.includes("expenses,"));
+check("月末見込みは実績を下回らない", budget.includes("Math.max(category.monthlyBudget ?? 0, categorySpending.get(category.id) ?? 0)") && budget.includes("unbudgetedSpent"));
+check("月末見込みのペース計算は残り日数ベース", budget.includes("variableExpenseTotal + dailyPace * remainingDays") && budget.includes("getElapsedBudgetDays"));
+check("月締めの着地は実績ベース", budget.includes("landingResult: totals.actualLanding"));
+check("ホームの月末見込みは基準を表示", home.includes("forecastBasisLabel") && home.includes("今のペース") && home.includes("予算どおり"));
+
 check("Security Advisor: no always-true policies in schema", !/using\s*\(\s*true\s*\)|with check\s*\(\s*true\s*\)/i.test(schema));
 check("Security Advisor: set_updated_at has fixed search_path", /create or replace function public\.set_updated_at\(\)[\s\S]*set search_path = public/i.test(schema));
 check(
