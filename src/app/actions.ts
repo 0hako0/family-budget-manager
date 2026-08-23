@@ -447,16 +447,17 @@ export async function createExpenseCategoryFromInput(formData: FormData) {
   if (!name) return { error: "カテゴリ名を入力してください。" };
   if (name.length > 20) return { error: "カテゴリ名は20文字以内で入力してください。" };
 
+  // 同名が複数あってもエラーにしないよう、単一行前提の maybeSingle() は使わない。
   const { data: existing, error: existingError } = await supabase
     .from("categories")
     .select("id")
     .eq("household_group_id", householdGroupId)
     .eq("kind", "expense")
     .eq("name", name)
-    .maybeSingle();
+    .limit(1);
 
   if (existingError) return { error: toJapaneseError(existingError.message) };
-  if (existing) return { error: "同じ名前のカテゴリがすでにあります。" };
+  if (existing && existing.length > 0) return { error: "同じ名前のカテゴリがすでにあります。" };
 
   const { data, error } = await supabase
     .from("categories")
@@ -495,42 +496,42 @@ export async function createExpenseCategoryFromInput(formData: FormData) {
 
 export async function archiveCategory(formData: FormData) {
   const { supabase } = await requireUser();
-  const { error } = await supabase.from("categories").update({ archived: true }).eq("id", value(formData, "id"));
+  const { error } = await supabase.from("categories").update({ archived: true }).eq("id", value(formData, "id")).eq("household_group_id", value(formData, "householdGroupId"));
   if (error) redirect(`/settings?categoryError=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteExpense(formData: FormData) {
   const { supabase } = await requireUser();
-  const { error } = await supabase.from("expenses").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("expenses").delete().eq("id", value(formData, "id")).eq("household_group_id", value(formData, "householdGroupId"));
   if (error) redirect(`/expenses?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteIncome(formData: FormData) {
   const { supabase } = await requireUser();
-  const { error } = await supabase.from("incomes").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("incomes").delete().eq("id", value(formData, "id")).eq("household_group_id", value(formData, "householdGroupId"));
   if (error) redirect(`/incomes?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteSaving(formData: FormData) {
   const { supabase } = await requireUser();
-  const { error } = await supabase.from("savings").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("savings").delete().eq("id", value(formData, "id")).eq("household_group_id", value(formData, "householdGroupId"));
   if (error) redirect(`/savings?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteFixedCost(formData: FormData) {
   const { supabase } = await requireUser();
-  const { error } = await supabase.from("fixed_costs").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("fixed_costs").delete().eq("id", value(formData, "id")).eq("household_group_id", value(formData, "householdGroupId"));
   if (error) redirect(`/fixed-costs?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }
 
 export async function deleteLoan(formData: FormData) {
   const { supabase } = await requireUser();
-  const { error } = await supabase.from("loans").delete().eq("id", value(formData, "id"));
+  const { error } = await supabase.from("loans").delete().eq("id", value(formData, "id")).eq("household_group_id", value(formData, "householdGroupId"));
   if (error) redirect(`/loans?error=${encodeURIComponent(toJapaneseError(error.message))}`);
   revalidateCore();
 }

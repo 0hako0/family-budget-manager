@@ -115,7 +115,14 @@ check("月別推移はカテゴリ別に切替できる", budget.includes("funct
 check("締め済みの月は保存済みサマリーを使う", budget.includes("function getMonthlySummary") && actions.includes("targetMonth"));
 check("明細取得はページング", read("src/lib/data.ts").includes("function fetchAllRows") && read("src/lib/data.ts").includes("detailStartDate"));
 
-check("積立に引き落とし日がある", budget.includes("dateFromMonthDay(period.monthKey, saving.paidOn)") && fixedTabs.includes("引き落とし日") && read("supabase/migrations/018_saving_paid_on.sql").includes("paid_on") && schema.includes("alter table public.savings add column if not exists paid_on integer not null default 1;"));
+check("積立に引き落とし日がある", budget.includes("dateFromMonthDay(monthKey, saving.paidOn)") && fixedTabs.includes("引き落とし日") && read("supabase/migrations/018_saving_paid_on.sql").includes("paid_on") && schema.includes("alter table public.savings add column if not exists paid_on integer not null default 1;"));
+
+check("共通クレカ未指定分は先頭カードにだけ計上", budget.includes("card.id === primaryCardId"));
+check("支払予定は翌月分も出す", budget.includes("[0, 1, 2].forEach"));
+check("ホームウィジェットは6種すべて反映", ["widgets.monthEnd", "widgets.payerBreakdown", "widgets.categoryBudget", "widgets.sharedWallet", "widgets.incomeSchedule", "widgets.burdenRatio"].every((key) => home.includes(key)));
+check("レシート保存は準備中と明示", !settings.includes("レシート画像を保存する") && expenseEntry.includes("準備中"));
+check("共通財布は全期間の支出を読む", read("src/lib/data.ts").includes("oldSharedWalletExpenseRows"));
+check("削除は家計グループで絞る", !/from("(expenses|incomes|savings|fixed_costs|loans)").delete().eq("id", value(formData, "id"));/.test(actions));
 
 check("Security Advisor: no always-true policies in schema", !/using\s*\(\s*true\s*\)|with check\s*\(\s*true\s*\)/i.test(schema));
 check("Security Advisor: set_updated_at has fixed search_path", /create or replace function public\.set_updated_at\(\)[\s\S]*set search_path = public/i.test(schema));

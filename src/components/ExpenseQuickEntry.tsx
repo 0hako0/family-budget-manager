@@ -32,10 +32,11 @@ function DeleteExpenseButton() {
   );
 }
 
-function ExpenseDeleteForm({ id }: { id: string }) {
+function ExpenseDeleteForm({ id, householdGroupId }: { id: string; householdGroupId?: string }) {
   return (
     <form action={deleteExpense} onSubmit={(event) => { if (!window.confirm("この支出を削除しますか？")) event.preventDefault(); }}>
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="householdGroupId" value={householdGroupId ?? ""} />
       <DeleteExpenseButton />
     </form>
   );
@@ -276,8 +277,9 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         </details>
 
         <details className="mt-3 rounded-2xl bg-cream/55 p-3">
-          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシートを撮影・読み取る</summary>
+          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシートを撮影・読み取る（準備中）</summary>
           <div className="grid gap-3 pt-2">
+            <p className="rounded-2xl bg-white/70 px-4 py-3 text-xs font-bold text-ink/55">画像の保存とOCR読み取りは準備中です。今は圧縮とプレビューの確認だけができます（画像は登録時に保存されません）。</p>
             <input className="mobile-input" type="file" accept="image/*" capture="environment" onChange={async (event) => {
               const file = event.target.files?.[0];
               if (receiptPreview) URL.revokeObjectURL(receiptPreview);
@@ -357,7 +359,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
                 ) : (
                   <div className="mt-3 flex items-center justify-end gap-2">
                     <button className="min-h-11 rounded-xl border border-emerald-900/10 bg-white px-4 text-sm font-bold text-leaf transition active:scale-[0.98]" type="button" onClick={() => setEditingExpenseId(expense.id)}>編集</button>
-                    <ExpenseDeleteForm id={expense.id} />
+                    <ExpenseDeleteForm id={expense.id} householdGroupId={data.householdGroupId} />
                   </div>
                 )}
               </MobileCard>

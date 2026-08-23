@@ -75,7 +75,7 @@ function FixedCostPanel({ data, categories }: { data: BudgetData; categories: Ar
                 <FixedCostForm data={data} categories={categories} cost={cost} />
               </div>
             </details>
-            <DeleteForm action={deleteFixedCost} id={cost.id} label="固定費" />
+            <DeleteForm action={deleteFixedCost} id={cost.id} label="固定費" householdGroupId={data.householdGroupId} />
           </ItemCard>
         ))}
       </ItemList>
@@ -124,7 +124,7 @@ function IncomePanel({ data, categories }: { data: BudgetData; categories: Array
                 <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
                 <div className="mt-3"><IncomeForm data={data} categories={categories} income={income} /></div>
               </details>
-              <DeleteForm action={deleteIncome} id={income.id} label="収入" />
+              <DeleteForm action={deleteIncome} id={income.id} label="収入" householdGroupId={data.householdGroupId} />
             </ItemCard>
           );
         })}
@@ -165,7 +165,7 @@ function SavingPanel({ data, categories }: { data: BudgetData; categories: Array
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
               <div className="mt-3"><SavingForm data={data} categories={categories} saving={saving} /></div>
             </details>
-            <DeleteForm action={deleteSaving} id={saving.id} label="貯金・投資" />
+            <DeleteForm action={deleteSaving} id={saving.id} label="貯金・投資" householdGroupId={data.householdGroupId} />
           </ItemCard>
         ))}
       </ItemList>
@@ -207,7 +207,7 @@ function LoanPanel({ data }: { data: BudgetData }) {
               <summary className="min-h-10 cursor-pointer list-none text-sm font-black text-leaf">編集</summary>
               <div className="mt-3"><LoanForm data={data} loan={loan} /></div>
             </details>
-            <DeleteForm action={deleteLoan} id={loan.id} label="ローン" />
+            <DeleteForm action={deleteLoan} id={loan.id} label="ローン" householdGroupId={data.householdGroupId} />
           </ItemCard>
         ))}
       </ItemList>
@@ -324,10 +324,11 @@ function ItemCard({ title, amount, meta, children }: { title: string; amount: st
   );
 }
 
-function DeleteForm({ action, id, label }: { action: (formData: FormData) => void; id: string; label: string }) {
+function DeleteForm({ action, id, label, householdGroupId }: { action: (formData: FormData) => void; id: string; label: string; householdGroupId?: string }) {
   return (
     <form action={action} onSubmit={(event) => { if (!window.confirm(`${label}を削除しますか？`)) event.preventDefault(); }}>
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="householdGroupId" value={householdGroupId ?? ""} />
       <FormSubmitButton idleLabel="削除" pendingLabel="削除中..." className="min-h-11 rounded-xl bg-red-50 px-4 text-sm font-bold text-warn transition active:scale-[0.98] disabled:opacity-50" />
     </form>
   );

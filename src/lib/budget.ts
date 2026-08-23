@@ -412,8 +412,10 @@ export function getMonthlySharedWalletUsage(data: BudgetData, referenceDate = ne
 export function getCreditCardBillingSummaries(data: BudgetData, referenceDate = new Date()) {
   const current = getMonthBudgetPeriod(referenceDate);
   const today = getTodayJSTDateString(referenceDate);
-  return data.commonPaymentMethods
-    .filter((method) => method.type === "shared_credit_card" && !method.archived)
+  const cards = data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card" && !method.archived);
+  // カード未指定の共通クレカ支出は先頭のカードにだけ寄せる。全カードで拾うと枚数分だけ二重計上になる。
+  const primaryCardId = cards[0]?.id;
+  return cards
     .map((card) => {
       const closingDay = card.closingDay ?? current.totalDays;
       const withdrawalDay = card.withdrawalDay ?? 27;
@@ -425,7 +427,9 @@ export function getCreditCardBillingSummaries(data: BudgetData, referenceDate = 
       const billingEnd = dateFromMonthDay(billingCloseMonth, closingDay);
       const withdrawalMonth = shiftMonthKey(billingCloseMonth, 1);
       const withdrawalDate = dateFromMonthDay(withdrawalMonth, withdrawalDay);
-      const expenses = data.expenses.filter((expense) => expense.paymentMethodId === card.id || (isSharedCreditCardExpense(expense) && !expense.paymentMethodId));
+      const expenses = data.expenses.filter(
+        (expense) => expense.paymentMethodId === card.id || (isSharedCreditCardExpense(expense) && !expense.paymentMethodId && card.id === primaryCardId)
+      );
       const billedExpenses = expenses.filter((expense) => dateInRange(expense.date, billingStart, billingEnd));
       const monthlyExpenses = expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate));
       return {
@@ -452,13 +456,17 @@ export function getSharedCreditCardSummary(data: BudgetData, referenceDate = new
 }
 
 export function getUpcomingPayments(data: BudgetData, referenceDate = new Date()) {
-  const period = getMonthBudgetPeriod(referenceDate);
   const today = getTodayJSTDateString(referenceDate);
   const rows: Array<{ date: string; type: "income" | "fixed_cost" | "loan" | "credit_card" | "saving"; label: string; amount: number; tone?: "income" | "outflow" }> = [];
-  getPlannedIncomes(data, referenceDate).forEach((income) => rows.push({ date: income.paidOn, type: "income", label: `給与・収入: ${income.name}`, amount: income.amount, tone: "income" }));
-  getActiveFixedCosts(data, referenceDate).forEach((cost) => rows.push({ date: dateFromMonthDay(period.monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
-  getActiveLoans(data, referenceDate).forEach((loan) => rows.push({ date: dateFromMonthDay(period.monthKey, loan.paidOn), type: "loan", label: `ローン: ${loan.name}`, amount: loan.monthlyPayment, tone: "outflow" }));
-  getActiveSavings(data, referenceDate).forEach((saving) => rows.push({ date: dateFromMonthDay(period.monthKey, saving.paidOn), type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
+  // 当月分の日付を過ぎると予定が空になるため、翌月・翌々月分も候補に入れる。
+  [0, 1, 2].forEach((offset) => {
+    const monthDate = offset === 0 ? referenceDate : getReferenceDateFromMonthKey(shiftMonthKey(getMonthBudgetPeriod(referenceDate).monthKey, offset));
+    const monthKey = getMonthBudgetPeriod(monthDate).monthKey;
+    getPlannedIncomes(data, monthDate).forEach((income) => rows.push({ date: income.paidOn, type: "income", label: `給与・収入: ${income.name}`, amount: income.amount, tone: "income" }));
+    getActiveFixedCosts(data, monthDate).forEach((cost) => rows.push({ date: dateFromMonthDay(monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
+    getActiveLoans(data, monthDate).forEach((loan) => rows.push({ date: dateFromMonthDay(monthKey, loan.paidOn), type: "loan", label: `ローン: ${loan.name}`, amount: loan.monthlyPayment, tone: "outflow" }));
+    getActiveSavings(data, monthDate).forEach((saving) => rows.push({ date: dateFromMonthDay(monthKey, saving.paidOn), type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
+  });
   getCreditCardBillingSummaries(data, referenceDate).forEach((summary) => rows.push({ date: summary.withdrawalDate, type: "credit_card", label: `クレカ引落: ${summary.card.name}`, amount: summary.nextBillingAmount, tone: "outflow" }));
   return rows.filter((row) => row.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
 }

@@ -105,6 +105,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     fixedCostsResult,
     loansResult,
     expenseRows,
+    oldSharedWalletExpenseRows,
     paymentMethodsResult,
     walletRows,
     savingGoalsResult,
@@ -118,6 +119,16 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
     supabase.from("fixed_costs").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
     supabase.from("loans").select("*").eq("household_group_id", groupId).order("paid_on", { ascending: true }),
     fetchAllRows(() => supabase.from("expenses").select("*").eq("household_group_id", groupId).gte("spent_on", detailStartDate).order("spent_on", { ascending: false })),
+    // 共通財布の残高は全期間の支出が必要なので、取得期間より古い分だけ追加で読む。
+    fetchAllRows(() =>
+      supabase
+        .from("expenses")
+        .select("*")
+        .eq("household_group_id", groupId)
+        .lt("spent_on", detailStartDate)
+        .or("payment_method_type.eq.shared_wallet,paid_by_type.eq.shared_wallet")
+        .order("spent_on", { ascending: false })
+    ),
     supabase.from("common_payment_methods").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
     fetchAllRows(() => supabase.from("shared_wallet_transactions").select("*").eq("household_group_id", groupId).order("occurred_on", { ascending: false })),
     supabase.from("saving_goals").select("*").eq("household_group_id", groupId).order("created_at", { ascending: true }),
@@ -203,7 +214,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       memo: String(loan.memo ?? ""),
       ...mapActivePeriod(loan)
     })),
-    expenses: expenseRows.map((expense: Record<string, unknown>) => ({
+    expenses: [...expenseRows, ...oldSharedWalletExpenseRows].map((expense: Record<string, unknown>) => ({
       id: String(expense.id),
       amount: Number(expense.amount ?? 0),
       date: String(expense.spent_on ?? ""),

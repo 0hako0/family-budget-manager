@@ -134,6 +134,7 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
               }}
             >
               <input type="hidden" name="id" value={category.id} />
+              <input type="hidden" name="householdGroupId" value={householdGroupId ?? ""} />
               <ArchiveButton />
             </form>
           </div>

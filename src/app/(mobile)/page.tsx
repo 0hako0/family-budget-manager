@@ -6,7 +6,10 @@ import { MonthlySnapshotRunner } from "@/components/MonthlySnapshotRunner";
 import {
   getBudgetConsumption,
   getMonthlyCategoryBudgetProgress,
+  getMemberBurdenShares,
   getMonthlyExpenseSummary,
+  getMonthlyPayerBreakdown,
+  getNextIncome,
   getMonthlySpendingInsight,
   getRemainingDays,
   getSharedCreditCardSummary,
@@ -29,6 +32,11 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   const consumption = getBudgetConsumption(data, referenceDate);
   const monthlyExpense = getMonthlyExpenseSummary(data, referenceDate);
   const spendingInsight = getMonthlySpendingInsight(data, referenceDate);
+  const payerBreakdown = getMonthlyPayerBreakdown(data, referenceDate).filter((row) => row.amount > 0);
+  const nextIncome = getNextIncome(data, referenceDate);
+  const burdenShares = getMemberBurdenShares(data);
+  const burdenRows = data.members.map((member) => ({ id: member.id, name: member.name, share: burdenShares[member.id] ?? 0 }));
+  const burdenRuleLabel = data.settings.burdenRule === "fifty_fifty" ? "均等割り" : data.settings.burdenRule === "income_ratio" ? "収入比" : "カスタム割合";
   const forecast = totals.forecast;
   const forecastBasisLabel = forecast.basis === "actual" ? "実績" : forecast.basis === "budget" ? "予算基準" : "ペース基準";
   const consumptionPercent = Math.round(consumption.rate * 100);
@@ -212,6 +220,66 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
               次回引き落とし予定: {yen(sharedCard.nextWithdrawalAmount)} / {sharedCard.withdrawalDate}
             </p>
           </div>
+        </section>
+      ) : null}
+
+      {widgets.payerBreakdown ? (
+        <section className="rounded-[22px] bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-base font-black text-ink">支払内訳</h2>
+            <Link href="/reports" prefetch className="text-sm font-bold text-leaf">詳しく見る</Link>
+          </div>
+          {payerBreakdown.length === 0 ? <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">今月の支出はまだありません</p> : null}
+          <div className="grid gap-2">
+            {payerBreakdown.map((row) => (
+              <div key={row.id} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 px-3 py-3 text-sm font-bold">
+                <span className="min-w-0 truncate text-ink">{row.label}</span>
+                <span className="shrink-0 text-ink">{yen(row.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {widgets.incomeSchedule ? (
+        <section className="rounded-[22px] bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-base font-black text-ink">収入予定</h2>
+            <Link href="/incomes" prefetch className="text-sm font-bold text-leaf">管理</Link>
+          </div>
+          <div className="rounded-2xl bg-emerald-50 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-bold text-ink">今月の収入予定</span>
+              <strong className="text-xl text-leaf">{yen(totals.incomeTotal)}</strong>
+            </div>
+            <p className="mt-1 text-xs font-bold text-ink/55">入金済み {yen(totals.paidIncomeTotal)}</p>
+            <p className="mt-1 text-xs font-bold text-ink/55">
+              {nextIncome ? `次回 ${nextIncome.name} ${yen(nextIncome.amount)} / ${nextIncome.paidOn.replaceAll("-", "/")}` : "今月の入金予定はこれ以上ありません"}
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      {widgets.burdenRatio && burdenRows.length > 0 ? (
+        <section className="rounded-[22px] bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-base font-black text-ink">負担割合</h2>
+            <Link href="/settings" prefetch className="text-sm font-bold text-leaf">設定</Link>
+          </div>
+          <div className="grid gap-2">
+            {burdenRows.map((row) => (
+              <div key={row.id} className="rounded-2xl bg-cream/60 px-3 py-3">
+                <div className="flex items-center justify-between gap-3 text-sm font-bold">
+                  <span className="min-w-0 truncate text-ink">{row.name}</span>
+                  <span className="shrink-0 text-ink">{Math.round(row.share * 100)}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                  <div className="h-full rounded-full bg-leaf" style={{ width: `${Math.min(100, Math.round(row.share * 100))}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] font-bold text-ink/40">{burdenRuleLabel}での按分です。</p>
         </section>
       ) : null}
 
