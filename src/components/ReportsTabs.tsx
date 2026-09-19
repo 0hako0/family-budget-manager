@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { closeCurrentMonth } from "@/app/actions";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
-import { CategoryPieChart, CategoryTrendChart, MonthlyTrendChart, RatioBarChart } from "@/components/Charts";
+import { CategoryPieChart, CategoryTrendChart, MonthlyTrendChart } from "@/components/Charts";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import {
   getCalendarDaySummaries,
@@ -12,19 +12,17 @@ import {
   getMonthScopedData,
   getMonthlyCategoryBudgetProgress,
   getMonthlyComparison,
-  getMonthlyPaymentMethodBreakdown,
   getMonthlyTrend,
   getExpensePayerLabel,
   getPaymentMethodLabel,
-  getTotals,
-  groupExpensesByCategory
+  groupExpensesByCategory,
+  sumBy
 } from "@/lib/budget";
 import { getCurrentMonthPeriodJST, getMonthBudgetPeriod, getReferenceDateFromMonthKey, shiftMonthKey } from "@/lib/date";
-import { percent, yen } from "@/lib/format";
+import { yen } from "@/lib/format";
 import type { BudgetData, CompareTarget, ExpenseTarget } from "@/lib/types";
-import { MetricCard } from "./MetricCard";
 
-const tabs = ["カテゴリ別", "月別推移", "比率", "比較", "カレンダー"] as const;
+const tabs = ["カテゴリ別", "月別推移", "比較", "カレンダー"] as const;
 const trendModes = ["合計", "カテゴリ別"] as const;
 const compareTargets: Array<{ value: CompareTarget; label: string }> = [
   { value: "last_month", label: "先月" },
@@ -49,22 +47,12 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
   const referenceDate = useMemo(() => getReferenceDateFromMonthKey(monthKey), [monthKey]);
   const period = useMemo(() => (currentPeriod.monthKey === monthKey ? currentPeriod : getMonthBudgetPeriod(referenceDate)), [currentPeriod, monthKey, referenceDate]);
   const scopedData = useMemo(() => getMonthScopedData(data, referenceDate), [data, referenceDate]);
-  const totals = useMemo(() => getTotals(data, referenceDate), [data, referenceDate]);
   const comparison = useMemo(() => getMonthlyComparison(data, target, referenceDate), [data, target, referenceDate]);
   const categoryBudgetItems = useMemo(() => getMonthlyCategoryBudgetProgress(data, referenceDate), [data, referenceDate]);
   const categoryTrend = useMemo(() => getCategoryMonthlyTrend(data, referenceDate), [data, referenceDate]);
-  const paymentBreakdown = useMemo(() => getMonthlyPaymentMethodBreakdown(data, referenceDate), [data, referenceDate]);
   const categoryData = useMemo(
     () => groupExpensesByCategory(scopedData.expenses).map((item) => ({ name: getCategory(data, item.categoryId)?.name ?? "未分類", value: item.value })),
     [data, scopedData.expenses]
-  );
-  const ratioData = useMemo(
-    () => [
-      { name: "固定費", value: totals.fixedCostRate * 100 },
-      { name: "変動費", value: totals.variableExpenseRate * 100 },
-      { name: "貯金", value: totals.savingRate * 100 }
-    ],
-    [totals.fixedCostRate, totals.savingRate, totals.variableExpenseRate]
   );
   const visibleCategoryRows = useMemo(() => comparison.categoryRows.filter((row) => row.currentValue > 0 || row.comparedValue > 0), [comparison.categoryRows]);
 
@@ -155,29 +143,6 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
         </section>
       ) : null}
 
-      {tab === "比率" ? (
-        <section className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MetricCard label="固定費比率" value={percent(totals.fixedCostRate)} />
-            <MetricCard label="変動費比率" value={percent(totals.variableExpenseRate)} />
-            <MetricCard label="貯金・投資率" value={percent(totals.savingRate)} tone="accent" />
-          </div>
-          <section className="rounded-[22px] bg-white p-4 shadow-sm"><RatioBarChart data={ratioData} /></section>
-          <section className="rounded-[22px] bg-white p-4 shadow-sm">
-            <h2 className="text-base font-black text-ink">支払い方法別</h2>
-            {paymentBreakdown.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/60">まだ支出がありません</p> : null}
-            <div className="mt-3 grid gap-2">
-              {paymentBreakdown.map((row) => (
-                <div key={row.id} className="flex items-center justify-between rounded-2xl bg-cream/60 px-3 py-3 text-sm">
-                  <span className="font-bold text-ink">{row.label}</span>
-                  <strong className="text-leaf">{yen(row.amount)}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
-        </section>
-      ) : null}
-
       {tab === "比較" ? (
         <section className="grid gap-4">
           <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -234,11 +199,15 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceD
   const selectedCell = cells.find((cell) => cell.date === selectedDate);
   const selectedExpenses = selectedCell?.expenses ?? [];
   const maxDailyTotal = Math.max(1, ...cells.map((cell) => cell.total));
+  const monthTotal = sumBy(cells.filter((cell) => cell.inMonth), (cell) => cell.total);
 
   return (
     <section className="grid gap-4">
       <section className="rounded-[22px] bg-white p-4 shadow-sm">
-        <h2 className="text-base font-black text-ink">支出カレンダー</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-black text-ink">支出カレンダー</h2>
+          <p className="text-sm font-bold text-ink/55">月合計 <strong className="ml-1 text-base font-black text-ink">{yen(monthTotal)}</strong></p>
+        </div>
         <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-black text-ink/45">{["日", "月", "火", "水", "木", "金", "土"].map((day) => <span key={day}>{day}</span>)}</div>
         <div className="mt-2 grid grid-cols-7 gap-1">
           {cells.map((cell, index) => cell.inMonth ? (
