@@ -12,7 +12,7 @@ const tabs: { id: SpendingTab; label: string }[] = [
   { id: "locations", label: "店舗" },
   { id: "expenses", label: "支出一覧" },
   { id: "payments", label: "支払方法" },
-  { id: "cashflow", label: "現金" }
+  { id: "cashflow", label: "今月の実支出" }
 ];
 
 const cashOutflowTypeLabel: Record<string, string> = {
