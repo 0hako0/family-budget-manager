@@ -443,6 +443,74 @@ export function getCreditCardBillingSummaries(data: BudgetData, referenceDate = 
     });
 }
 
+/**
+ * 「今月あと使える金額」は使った日基準（発生ベース）だが、実際に口座から出ていくお金は
+ * クレカ利用分だけ翌月にずれる。ここでは今月に実際に出ていく金額（現金ベース）を
+ * 固定費・ローン・現金支払い＋前月分クレカ利用（今月引き落とし）で計算する。
+ */
+export function getMonthlyCashOutflow(data: BudgetData, referenceDate = new Date()) {
+  const current = getMonthBudgetPeriod(referenceDate);
+  const scoped = getMonthScopedData(data, referenceDate);
+  const previousMonthDate = getReferenceDateFromMonthKey(shiftMonthKey(current.monthKey, -1));
+  const previousScoped = getMonthScopedData(data, previousMonthDate);
+
+  const fixedCostRows = scoped.fixedCosts.map((cost) => ({
+    id: `fixed-${cost.id}`,
+    date: dateFromMonthDay(current.monthKey, cost.paidOn),
+    label: cost.name,
+    amount: cost.amount,
+    type: "fixed_cost" as const
+  }));
+  const loanRows = scoped.loans.map((loan) => ({
+    id: `loan-${loan.id}`,
+    date: dateFromMonthDay(current.monthKey, loan.paidOn),
+    label: loan.name,
+    amount: loan.monthlyPayment,
+    type: "loan" as const
+  }));
+  const cashExpenseRows = scoped.expenses
+    .filter((expense) => !isSharedCreditCardExpense(expense))
+    .map((expense) => ({
+      id: `expense-${expense.id}`,
+      date: expense.date,
+      label: expense.location?.trim() || expense.memo || "支出",
+      amount: expense.amount,
+      type: "cash_expense" as const
+    }));
+
+  const cards = data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card" && !method.archived);
+  const primaryCardId = cards[0]?.id;
+  const creditCardRows = cards
+    .map((card) => {
+      const withdrawalDay = card.withdrawalDay ?? 27;
+      const amount = sumBy(
+        previousScoped.expenses.filter(
+          (expense) => expense.paymentMethodId === card.id || (isSharedCreditCardExpense(expense) && !expense.paymentMethodId && card.id === primaryCardId)
+        ),
+        (expense) => expense.amount
+      );
+      return {
+        id: `card-${card.id}`,
+        date: dateFromMonthDay(current.monthKey, withdrawalDay),
+        label: `クレカ引き落とし: ${card.name}`,
+        amount,
+        type: "credit_card" as const
+      };
+    })
+    .filter((row) => row.amount > 0);
+
+  const rows = [...fixedCostRows, ...loanRows, ...cashExpenseRows, ...creditCardRows].sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    rows,
+    total: sumBy(rows, (row) => row.amount),
+    fixedCostTotal: sumBy(fixedCostRows, (row) => row.amount),
+    loanTotal: sumBy(loanRows, (row) => row.amount),
+    cashExpenseTotal: sumBy(cashExpenseRows, (row) => row.amount),
+    creditCardTotal: sumBy(creditCardRows, (row) => row.amount)
+  };
+}
+
 export function getSharedCreditCardSummary(data: BudgetData, referenceDate = new Date()) {
   const summaries = getCreditCardBillingSummaries(data, referenceDate);
   const first = summaries[0];

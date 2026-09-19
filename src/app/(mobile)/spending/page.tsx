@@ -1,25 +1,35 @@
 import Link from "next/link";
 import { deleteExpense } from "@/app/actions";
-import { getMonthlyPaymentMethodBreakdown, getMonthlySpendingInsight } from "@/lib/budget";
+import { getMonthlyCashOutflow, getMonthlyPaymentMethodBreakdown, getMonthlySpendingInsight } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import { getMonthBudgetPeriod } from "@/lib/date";
 import { yen } from "@/lib/format";
 
 type SpendingTab = "categories" | "locations" | "expenses" | "payments";
+type SpendingBasis = "accrual" | "cash";
 
 const tabs: { id: SpendingTab; label: string }[] = [
   { id: "categories", label: "カテゴリ" },
   { id: "locations", label: "店舗" },
   { id: "expenses", label: "支出一覧" },
-  { id: "payments", label: "支払い方法" }
+  { id: "payments", label: "支払方法" }
 ];
 
-export default async function SpendingPage({ searchParams }: { searchParams?: { tab?: string; q?: string } }) {
+const cashOutflowTypeLabel: Record<string, string> = {
+  fixed_cost: "固定費",
+  loan: "ローン",
+  cash_expense: "現金支出",
+  credit_card: "クレカ引き落とし"
+};
+
+export default async function SpendingPage({ searchParams }: { searchParams?: { basis?: string; tab?: string; q?: string } }) {
   const data = await getBudgetData();
   const referenceDate = new Date();
   const period = getMonthBudgetPeriod(referenceDate);
   const insight = getMonthlySpendingInsight(data, referenceDate);
   const paymentMethods = getMonthlyPaymentMethodBreakdown(data, referenceDate);
+  const cashOutflow = getMonthlyCashOutflow(data, referenceDate);
+  const basis: SpendingBasis = searchParams?.basis === "cash" ? "cash" : "accrual";
   const activeTab = tabs.some((tab) => tab.id === searchParams?.tab) ? (searchParams?.tab as SpendingTab) : "categories";
   const query = (searchParams?.q ?? "").trim().toLowerCase();
   const filteredCategories = insight.categories.filter((item) => item.name.toLowerCase().includes(query));
@@ -61,36 +71,68 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
         </section>
       ) : (
         <>
-          <form className="rounded-[22px] bg-white p-3 shadow-sm" action="/spending">
-            <input type="hidden" name="tab" value={activeTab} />
-            <label className="text-xs font-black text-ink/50" htmlFor="spending-search">検索</label>
-            <input
-              id="spending-search"
-              className="mobile-input mt-2"
-              name="q"
-              placeholder="店舗名・カテゴリ・メモ"
-              defaultValue={searchParams?.q ?? ""}
-            />
-          </form>
-
-          <nav className="grid grid-cols-4 gap-1 rounded-[20px] bg-white p-1 shadow-sm" aria-label="支出詳細タブ">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.id}
-                href={`/spending?tab=${tab.id}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
-                prefetch
-                className={
-                  activeTab === tab.id
-                    ? "flex min-h-11 items-center justify-center rounded-2xl bg-leaf px-2 text-xs font-black text-white transition active:scale-[0.98]"
-                    : "flex min-h-11 items-center justify-center rounded-2xl px-2 text-xs font-black text-ink/60 transition active:scale-[0.98]"
-                }
-              >
-                {tab.label}
-              </Link>
-            ))}
+          <nav className="grid grid-cols-2 gap-1 rounded-[20px] bg-white p-1 shadow-sm" aria-label="集計基準">
+            <Link
+              href={`/spending?basis=accrual&tab=${activeTab}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+              prefetch
+              className={
+                basis === "accrual"
+                  ? "flex min-h-12 flex-col items-center justify-center rounded-2xl bg-leaf px-2 py-1 text-white transition active:scale-[0.98]"
+                  : "flex min-h-12 flex-col items-center justify-center rounded-2xl px-2 py-1 text-ink/60 transition active:scale-[0.98]"
+              }
+            >
+              <span className="text-sm font-black">使った日基準</span>
+              <span className="text-[10px] font-bold opacity-75">カテゴリ・店舗など</span>
+            </Link>
+            <Link
+              href="/spending?basis=cash"
+              prefetch
+              className={
+                basis === "cash"
+                  ? "flex min-h-12 flex-col items-center justify-center rounded-2xl bg-leaf px-2 py-1 text-white transition active:scale-[0.98]"
+                  : "flex min-h-12 flex-col items-center justify-center rounded-2xl px-2 py-1 text-ink/60 transition active:scale-[0.98]"
+              }
+            >
+              <span className="text-sm font-black">引き落とし基準</span>
+              <span className="text-[10px] font-bold opacity-75">今月の実支出</span>
+            </Link>
           </nav>
 
-          {activeTab === "categories" ? (
+          {basis === "accrual" ? (
+            <>
+              <form className="rounded-[22px] bg-white p-3 shadow-sm" action="/spending">
+                <input type="hidden" name="basis" value="accrual" />
+                <input type="hidden" name="tab" value={activeTab} />
+                <label className="text-xs font-black text-ink/50" htmlFor="spending-search">検索</label>
+                <input
+                  id="spending-search"
+                  className="mobile-input mt-2"
+                  name="q"
+                  placeholder="店舗名・カテゴリ・メモ"
+                  defaultValue={searchParams?.q ?? ""}
+                />
+              </form>
+
+              <nav className="grid grid-cols-4 gap-1 rounded-[20px] bg-white p-1 shadow-sm" aria-label="支出詳細タブ">
+                {tabs.map((tab) => (
+                  <Link
+                    key={tab.id}
+                    href={`/spending?basis=accrual&tab=${tab.id}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+                    prefetch
+                    className={
+                      activeTab === tab.id
+                        ? "flex min-h-11 items-center justify-center rounded-2xl bg-leaf px-2 text-xs font-black text-white transition active:scale-[0.98]"
+                        : "flex min-h-11 items-center justify-center rounded-2xl px-2 text-xs font-black text-ink/60 transition active:scale-[0.98]"
+                    }
+                  >
+                    {tab.label}
+                  </Link>
+                ))}
+              </nav>
+            </>
+          ) : null}
+
+          {basis === "accrual" && activeTab === "categories" ? (
             <section className="rounded-[22px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black text-ink">カテゴリ別内訳</h2>
               <div className="mt-3 grid gap-2">
@@ -112,7 +154,7 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
             </section>
           ) : null}
 
-          {activeTab === "locations" ? (
+          {basis === "accrual" && activeTab === "locations" ? (
             <section className="rounded-[22px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black text-ink">店舗別内訳</h2>
               <div className="mt-3 grid gap-2">
@@ -135,7 +177,7 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
             </section>
           ) : null}
 
-          {activeTab === "expenses" ? (
+          {basis === "accrual" && activeTab === "expenses" ? (
             <section className="rounded-[22px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black text-ink">今月の支出一覧</h2>
               <div className="mt-3 grid gap-2">
@@ -168,7 +210,7 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
             </section>
           ) : null}
 
-          {activeTab === "payments" ? (
+          {basis === "accrual" && activeTab === "payments" ? (
             <section className="rounded-[22px] bg-white p-4 shadow-sm">
               <h2 className="text-base font-black text-ink">支払い方法別</h2>
               <div className="mt-3 grid gap-2">
@@ -177,6 +219,32 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
                   <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold">
                     <span className="min-w-0 truncate text-ink">{item.label}</span>
                     <strong className="shrink-0 text-ink">{yen(item.amount)}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {basis === "cash" ? (
+            <section className="rounded-[22px] bg-white p-4 shadow-sm">
+              <h2 className="text-base font-black text-ink">今月の実際の支出（現金ベース）</h2>
+              <p className="mt-1 text-xs font-bold text-ink/45">クレカは前月分の利用額が今月引き落とされる前提で計算しています。「今月の支出」（使った日基準）とは別の金額になります。</p>
+              <p className="mt-3 text-3xl font-black text-ink">{yen(cashOutflow.total)}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-ink/55">
+                <p>固定費 {yen(cashOutflow.fixedCostTotal)}</p>
+                <p>ローン {yen(cashOutflow.loanTotal)}</p>
+                <p>現金支出 {yen(cashOutflow.cashExpenseTotal)}</p>
+                <p>クレカ引き落とし {yen(cashOutflow.creditCardTotal)}</p>
+              </div>
+              <div className="mt-4 grid gap-2">
+                {cashOutflow.rows.length === 0 ? <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/55">今月の支出はまだありません</p> : null}
+                {cashOutflow.rows.map((row) => (
+                  <div key={row.id} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-ink">{row.label}</p>
+                      <p className="mt-1 text-xs font-bold text-ink/50">{row.date.replaceAll("-", "/")} / {cashOutflowTypeLabel[row.type]}</p>
+                    </div>
+                    <strong className="shrink-0 text-sm text-ink">{yen(row.amount)}</strong>
                   </div>
                 ))}
               </div>

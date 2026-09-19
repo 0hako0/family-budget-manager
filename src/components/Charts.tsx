@@ -83,18 +83,3 @@ export function CategoryTrendChart({
   );
 }
 
-export function RatioBarChart({ data }: { data: { name: string; value: number }[] }) {
-  return (
-    <div className="h-56 w-full">
-      <ResponsiveContainer>
-        <BarChart data={data} layout="vertical" margin={{ top: 8, right: 16, left: 24, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e8dcc8" />
-          <XAxis type="number" tickFormatter={(value) => `${Number(value).toFixed(0)}%`} />
-          <YAxis dataKey="name" type="category" width={78} />
-          <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
-          <Bar dataKey="value" radius={[0, 8, 8, 0]} fill="#2d7dd2" />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
