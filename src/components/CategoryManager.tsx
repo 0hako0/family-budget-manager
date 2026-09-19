@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { archiveCategory, saveCategory } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { yen } from "@/lib/format";
 import type { Category, CategoryKind } from "@/lib/types";
 import { inputClass } from "./FormCard";
 
@@ -27,7 +28,15 @@ function ArchiveButton() {
   );
 }
 
-export function CategoryManager({ initialCategories, householdGroupId }: { initialCategories: Category[]; householdGroupId?: string }) {
+export function CategoryManager({
+  initialCategories,
+  householdGroupId,
+  budgetSuggestions = {}
+}: {
+  initialCategories: Category[];
+  householdGroupId?: string;
+  budgetSuggestions?: Record<string, number>;
+}) {
   const [editing, setEditing] = useState<Category | null>(null);
   const [kind, setKind] = useState<CategoryKind>("expense");
   const [name, setName] = useState("");
@@ -37,6 +46,7 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
   const [sortOrder, setSortOrder] = useState("1");
   const [hidden, setHidden] = useState(false);
   const [favorite, setFavorite] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const visibleCategories = useMemo(
     () => initialCategories.filter((category) => !category.archived).sort((a, b) => a.kind.localeCompare(b.kind) || a.sortOrder - b.sortOrder),
@@ -68,9 +78,15 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
     setFavorite(Boolean(category.favorite));
   }
 
+  function applyBudgetSuggestion(category: Category, suggestion: number) {
+    editCategory(category);
+    setMonthlyBudget(String(suggestion));
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <div className="grid gap-4">
-      <form action={saveCategory} className="grid gap-3 rounded-2xl bg-cream/60 p-3">
+      <form ref={formRef} action={saveCategory} className="grid gap-3 rounded-2xl bg-cream/60 p-3">
         <input type="hidden" name="householdGroupId" value={householdGroupId ?? ""} />
         <input type="hidden" name="id" value={editing?.id ?? ""} />
         <h2 className="font-black text-ink">{editing ? "カテゴリ編集" : "カテゴリ追加"}</h2>
@@ -126,6 +142,16 @@ export function CategoryManager({ initialCategories, householdGroupId }: { initi
                 編集
               </button>
             </div>
+            {category.kind === "expense" && !category.monthlyBudget && budgetSuggestions[category.id] ? (
+              <button
+                className="mt-3 flex min-h-11 w-full items-center justify-between rounded-2xl border border-leaf/25 bg-white px-3 text-xs font-bold text-ink transition active:scale-[0.98]"
+                type="button"
+                onClick={() => applyBudgetSuggestion(category, budgetSuggestions[category.id])}
+              >
+                <span className="text-ink/60">予算未設定：直近{"3"}か月平均</span>
+                <span className="text-leaf">{yen(budgetSuggestions[category.id])}を予算にする</span>
+              </button>
+            ) : null}
             <form
               action={archiveCategory}
               className="mt-3"
