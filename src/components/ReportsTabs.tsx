@@ -62,8 +62,6 @@ export function ReportsTabs({ data, budgetSuggestions = {} }: { data: BudgetData
 
   const isCurrentMonth = monthKey === currentPeriod.monthKey;
 
-  const isCurrentMonth = monthKey === currentPeriod.monthKey;
-
   return (
     <div className="grid gap-4">
       <section>
