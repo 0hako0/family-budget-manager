@@ -417,15 +417,15 @@ export function getCreditCardBillingSummaries(data: BudgetData, referenceDate = 
   const primaryCardId = cards[0]?.id;
   return cards
     .map((card) => {
-      const closingDay = card.closingDay ?? current.totalDays;
       const withdrawalDay = card.withdrawalDay ?? 27;
-      const currentClose = dateFromMonthDay(current.monthKey, closingDay);
-      const billingCloseMonth = today <= currentClose ? current.monthKey : shiftMonthKey(current.monthKey, 1);
-      const previousCloseMonth = shiftMonthKey(billingCloseMonth, -1);
-      const previousClose = dateFromMonthDay(previousCloseMonth, closingDay);
-      const billingStart = shiftDateKey(previousClose, 1);
-      const billingEnd = dateFromMonthDay(billingCloseMonth, closingDay);
-      const withdrawalMonth = shiftMonthKey(billingCloseMonth, 1);
+      // クレカは毎月1日〜月末で締めて、翌月に引き落とされる前提で計算する。
+      // 今月の引き落とし日をまだ迎えていなければ、直近の引き落とし対象は先月分（すでに締まっている）。
+      // 過ぎていれば、引き落とし対象は今月分（今月末締め・来月引き落とし）に進む。
+      const withdrawalDateThisMonth = dateFromMonthDay(current.monthKey, withdrawalDay);
+      const usageMonth = today <= withdrawalDateThisMonth ? shiftMonthKey(current.monthKey, -1) : current.monthKey;
+      const billingStart = dateFromMonthDay(usageMonth, 1);
+      const billingEnd = dateFromMonthDay(usageMonth, 31);
+      const withdrawalMonth = shiftMonthKey(usageMonth, 1);
       const withdrawalDate = dateFromMonthDay(withdrawalMonth, withdrawalDay);
       const expenses = data.expenses.filter(
         (expense) => expense.paymentMethodId === card.id || (isSharedCreditCardExpense(expense) && !expense.paymentMethodId && card.id === primaryCardId)
@@ -687,13 +687,4 @@ function normalizeShares(shares: Record<string, number>) {
   if (entries.length === 0) return {};
   if (total <= 0) return Object.fromEntries(entries.map(([id]) => [id, 1 / entries.length]));
   return Object.fromEntries(entries.map(([id, value]) => [id, value / total]));
-}
-
-function shiftDateKey(dateKey: string, offsetDays: number) {
-  const date = new Date(`${dateKey}T00:00:00+09:00`);
-  date.setDate(date.getDate() + offsetDays);
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${year}-${pad2(month)}-${pad2(day)}`;
 }

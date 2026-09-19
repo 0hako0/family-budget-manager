@@ -116,10 +116,8 @@ export default async function SettingsPage({
           <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
           <input type="hidden" name="type" value="shared_credit_card" />
           <label className="grid gap-1 text-sm font-bold text-ink/65">カード名<input className={inputClass} name="name" placeholder="家計カード" required /></label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1 text-sm font-bold text-ink/65">締め日<input className={inputClass} name="closingDay" type="number" inputMode="numeric" min={1} max={31} placeholder="15" /></label>
-            <label className="grid gap-1 text-sm font-bold text-ink/65">引き落とし日<input className={inputClass} name="withdrawalDay" type="number" inputMode="numeric" min={1} max={31} placeholder="27" /></label>
-          </div>
+          <label className="grid gap-1 text-sm font-bold text-ink/65">引き落とし日<input className={inputClass} name="withdrawalDay" type="number" inputMode="numeric" min={1} max={31} placeholder="27" /></label>
+          <p className="text-xs font-bold text-ink/40">毎月1日〜月末の利用分を、翌月のこの日に引き落とし対象として計算します。</p>
           <label className="grid gap-1 text-sm font-bold text-ink/65">引き落とし口座<input className={inputClass} name="withdrawalAccount" placeholder="家計口座" /></label>
           <FormSubmitButton idleLabel="カードを登録" pendingLabel="保存中..." />
         </form>
@@ -131,10 +129,7 @@ export default async function SettingsPage({
               <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
               <input type="hidden" name="type" value="shared_credit_card" />
               <input className={inputClass} name="name" defaultValue={card.name} required />
-              <div className="grid grid-cols-2 gap-3">
-                <input className={inputClass} name="closingDay" type="number" inputMode="numeric" min={1} max={31} defaultValue={card.closingDay ?? ""} placeholder="締め日" />
-                <input className={inputClass} name="withdrawalDay" type="number" inputMode="numeric" min={1} max={31} defaultValue={card.withdrawalDay ?? ""} placeholder="引き落とし日" />
-              </div>
+              <input className={inputClass} name="withdrawalDay" type="number" inputMode="numeric" min={1} max={31} defaultValue={card.withdrawalDay ?? ""} placeholder="引き落とし日" />
               <input className={inputClass} name="withdrawalAccount" defaultValue={card.withdrawalAccount ?? ""} placeholder="引き落とし口座" />
               <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-ink">
                 <input name="archived" type="checkbox" defaultChecked={card.archived} />
