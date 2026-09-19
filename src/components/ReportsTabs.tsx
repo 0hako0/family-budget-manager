@@ -24,7 +24,7 @@ import { percent, yen } from "@/lib/format";
 import type { BudgetData, CompareTarget, ExpenseTarget } from "@/lib/types";
 import { MetricCard } from "./MetricCard";
 
-const tabs = ["カテゴリ別", "月別推移", "比率", "年比較", "カレンダー"] as const;
+const tabs = ["カテゴリ別", "月別推移", "比率", "比較", "カレンダー"] as const;
 const trendModes = ["合計", "カテゴリ別"] as const;
 const compareTargets: Array<{ value: CompareTarget; label: string }> = [
   { value: "last_month", label: "先月" },
@@ -68,29 +68,44 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
   );
   const visibleCategoryRows = useMemo(() => comparison.categoryRows.filter((row) => row.currentValue > 0 || row.comparedValue > 0), [comparison.categoryRows]);
 
+  const isCurrentMonth = monthKey === currentPeriod.monthKey;
+
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-4">
       <section>
         <h1 className="text-xl font-black text-ink">レポート</h1>
         <p className="mt-1 text-sm text-ink/60">家計の予算消化、月次比較、支払い方法別の内訳を確認します。</p>
       </section>
 
-      <section className="rounded-[18px] bg-white p-3 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <button className="min-h-11 rounded-2xl bg-cream px-4 text-sm font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, -1))}>前月</button>
-          <div className="text-center">
-            <p className="text-base font-black text-ink">{period.monthLabel}</p>
-            <p className="text-[11px] font-bold text-ink/45">{period.startLabel}〜{period.endLabel}</p>
-          </div>
-          <button className="min-h-11 rounded-2xl bg-cream px-4 text-sm font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, 1))}>次月</button>
+      <section className="flex items-center gap-2 rounded-[18px] bg-white p-2 shadow-sm">
+        <button className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl bg-cream text-lg font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, -1))} aria-label="前月">‹</button>
+        <div className="flex-1 text-center">
+          <p className="text-base font-black text-ink">{period.monthLabel}</p>
+          <p className="text-[11px] font-bold text-ink/45">{period.startLabel}〜{period.endLabel}</p>
         </div>
-        <button className="mt-2 min-h-10 w-full rounded-2xl border border-leaf/20 text-sm font-black text-leaf transition active:scale-[0.98]" type="button" onClick={() => setMonthKey(currentPeriod.monthKey)}>今月に戻る</button>
+        <button className="flex min-h-11 min-w-11 items-center justify-center rounded-2xl bg-cream text-lg font-black text-ink transition active:scale-[0.98]" type="button" onClick={() => setMonthKey((value) => shiftMonthKey(value, 1))} aria-label="次月">›</button>
+        {!isCurrentMonth ? (
+          <button className="min-h-11 shrink-0 rounded-2xl border border-leaf/25 px-3 text-xs font-black text-leaf transition active:scale-[0.98]" type="button" onClick={() => setMonthKey(currentPeriod.monthKey)}>今月</button>
+        ) : null}
       </section>
 
-      <div className="grid grid-cols-5 gap-1 rounded-2xl bg-white p-1 shadow-sm">
-        {tabs.map((item) => (
-          <button key={item} className={tab === item ? "min-h-11 rounded-xl bg-leaf text-[11px] font-black text-white" : "min-h-11 rounded-xl text-[11px] font-bold text-ink/60"} type="button" onClick={() => setTab(item)}>{item}</button>
-        ))}
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="flex w-max gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm sm:w-full">
+          {tabs.map((item) => (
+            <button
+              key={item}
+              className={
+                tab === item
+                  ? "min-h-11 shrink-0 rounded-xl bg-leaf px-4 text-sm font-black text-white transition active:scale-[0.98] sm:flex-1"
+                  : "min-h-11 shrink-0 rounded-xl px-4 text-sm font-bold text-ink/60 transition active:scale-[0.98] sm:flex-1"
+              }
+              type="button"
+              onClick={() => setTab(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "カテゴリ別" ? (
@@ -163,31 +178,46 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
         </section>
       ) : null}
 
-      {tab === "年比較" ? (
+      {tab === "比較" ? (
         <section className="grid gap-4">
-          <div className="grid grid-cols-2 gap-2">
-            {compareTargets.map((item) => <button key={item.value} className={target === item.value ? "min-h-11 rounded-2xl bg-leaf text-sm font-black text-white" : "min-h-11 rounded-2xl bg-white text-sm font-bold text-ink"} type="button" onClick={() => setTarget(item.value)}>{item.label}</button>)}
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <div className="flex w-max gap-2">
+              {compareTargets.map((item) => (
+                <button
+                  key={item.value}
+                  className={
+                    target === item.value
+                      ? "min-h-11 shrink-0 rounded-2xl bg-leaf px-4 text-sm font-black text-white transition active:scale-[0.98]"
+                      : "min-h-11 shrink-0 rounded-2xl bg-white px-4 text-sm font-bold text-ink shadow-sm transition active:scale-[0.98]"
+                  }
+                  type="button"
+                  onClick={() => setTarget(item.value)}
+                >
+                  {item.label}と比較
+                </button>
+              ))}
+            </div>
           </div>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
-            <p className="text-sm font-bold text-leaf">月締めプレビュー</p>
-            <p className="mt-2 text-3xl font-black text-ink">{comparison.current.month}</p>
-            <p className="mt-1 text-sm text-ink/60">残額 {yen(comparison.current.remainingBudget)} / 着地 {yen(comparison.current.landingResult)}</p>
-            {comparison.current.closedAt ? <p className="mt-1 text-xs font-bold text-ink/45">締め済み: {comparison.current.closedAt.slice(0, 10).replaceAll("-", "/")}</p> : null}
-            <form action={closeCurrentMonth} className="mt-3 grid gap-3">
-              <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
-              <input type="hidden" name="targetMonth" value={monthKey} />
-              <textarea className="min-h-20 rounded-2xl border border-emerald-900/10 bg-cream/60 px-4 py-3 text-base outline-none transition focus:border-leaf" name="memo" placeholder="今月のメモ" />
-              <FormSubmitButton idleLabel={comparison.current.closedAt ? "この月を締め直す" : "この月を締める"} pendingLabel="保存中..." />
-            </form>
-          </section>
-          <section className="rounded-[22px] bg-white p-4 shadow-sm">
-            <h2 className="text-base font-black text-ink">比較</h2>
+            <h2 className="text-base font-black text-ink">合計の比較</h2>
             <div className="mt-3 grid gap-2">{comparison.rows.map((row) => <ComparisonRow key={row.label} label={row.label} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />)}</div>
           </section>
           <section className="rounded-[22px] bg-white p-4 shadow-sm">
             <h2 className="text-base font-black text-ink">カテゴリ別支出</h2>
             {visibleCategoryRows.length === 0 ? <p className="mt-3 text-sm font-bold text-ink/60">まだカテゴリ別支出がありません</p> : null}
             <div className="mt-3 grid gap-2">{visibleCategoryRows.map((row) => <ComparisonRow key={row.category.id} label={`${row.category.icon} ${row.category.name}`} current={row.currentValue} compared={row.comparedValue} diff={row.diff} target={compareTargets.find((item) => item.value === target)?.label ?? ""} />)}</div>
+          </section>
+          <section className="rounded-[22px] border-2 border-dashed border-leaf/25 bg-emerald-50/40 p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-leaf">月末の操作</p>
+            <p className="mt-2 text-2xl font-black text-ink">{period.monthLabel}</p>
+            <p className="mt-1 text-sm text-ink/60">残額 {yen(comparison.current.remainingBudget)} / 着地 {yen(comparison.current.landingResult)}</p>
+            {comparison.current.closedAt ? <p className="mt-1 text-xs font-bold text-ink/45">締め済み: {comparison.current.closedAt.slice(0, 10).replaceAll("-", "/")}</p> : null}
+            <form action={closeCurrentMonth} className="mt-3 grid gap-3">
+              <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+              <input type="hidden" name="targetMonth" value={monthKey} />
+              <textarea className="min-h-20 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base outline-none transition focus:border-leaf" name="memo" placeholder="今月のメモ" />
+              <FormSubmitButton idleLabel={comparison.current.closedAt ? "この月を締め直す" : "この月を締める"} pendingLabel="保存中..." />
+            </form>
           </section>
         </section>
       ) : null}
