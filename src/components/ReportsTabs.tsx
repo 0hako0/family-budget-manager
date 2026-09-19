@@ -55,6 +55,13 @@ export function ReportsTabs({ data, budgetSuggestions = {} }: { data: BudgetData
     [data, scopedData.expenses]
   );
   const visibleCategoryRows = useMemo(() => comparison.categoryRows.filter((row) => row.currentValue > 0 || row.comparedValue > 0), [comparison.categoryRows]);
+  const fixedCostByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    scopedData.fixedCosts.forEach((cost) => map.set(cost.categoryId, (map.get(cost.categoryId) ?? 0) + cost.amount));
+    return Array.from(map.entries())
+      .map(([categoryId, amount]) => ({ category: getCategory(data, categoryId), amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [data, scopedData.fixedCosts]);
   const unbudgetedSuggestions = useMemo(
     () => data.categories.filter((category) => category.kind === "expense" && !category.archived && !category.monthlyBudget && budgetSuggestions[category.id]),
     [data.categories, budgetSuggestions]
@@ -107,6 +114,28 @@ export function ReportsTabs({ data, budgetSuggestions = {} }: { data: BudgetData
             <div className="mt-3"><CategoryBudgetList items={categoryBudgetItems} /></div>
             {categoryData.length > 0 ? <CategoryPieChart data={categoryData} /> : <p className="mt-4 rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">この月の支出はまだありません</p>}
           </section>
+
+          {fixedCostByCategory.length > 0 ? (
+            <section className="rounded-[22px] bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-black text-ink">固定費（カテゴリ別）</h2>
+                <p className="text-sm font-bold text-ink/55">{yen(sumBy(fixedCostByCategory, (row) => row.amount))}</p>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {fixedCostByCategory.map((row) => (
+                  <div key={row.category?.id ?? "uncategorized"} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 px-3 py-3 text-sm">
+                    <span className="flex min-w-0 items-center gap-2 font-bold text-ink">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base" style={{ backgroundColor: `${row.category?.color ?? "#94a3b8"}22` }}>
+                        {row.category?.icon ?? "・"}
+                      </span>
+                      <span className="truncate">{row.category?.name ?? "未分類"}</span>
+                    </span>
+                    <strong className="shrink-0 text-ink">{yen(row.amount)}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {unbudgetedSuggestions.length > 0 ? (
             <section className="rounded-[22px] border-2 border-dashed border-leaf/25 bg-emerald-50/40 p-4">
@@ -231,7 +260,7 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceD
   const [selectedDate, setSelectedDate] = useState(period.startDate);
   useEffect(() => setSelectedDate(period.startDate), [period.startDate]);
   const selectedCell = cells.find((cell) => cell.date === selectedDate);
-  const selectedExpenses = selectedCell?.expenses ?? [];
+  const selectedItems = selectedCell?.items ?? [];
   const maxDailyTotal = Math.max(1, ...cells.map((cell) => cell.total));
   const monthTotal = sumBy(cells.filter((cell) => cell.inMonth), (cell) => cell.total);
 
@@ -254,18 +283,24 @@ function ExpenseCalendar({ data, referenceDate }: { data: BudgetData; referenceD
       </section>
       <section className="rounded-[22px] bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between"><h3 className="text-base font-black text-ink">{selectedDate.replaceAll("-", "/")}</h3><p className="text-sm font-black text-leaf">合計 {yen(selectedCell?.total ?? 0)}</p></div>
-        {selectedExpenses.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">この日の支出はありません</p> : null}
+        {selectedItems.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">この日の支出・固定費はありません</p> : null}
         <div className="mt-3 grid gap-3">
-          {selectedExpenses.map((expense) => {
-            const category = getCategory(data, expense.categoryId);
+          {selectedItems.map((item) => {
+            const category = getCategory(data, item.categoryId);
             return (
-              <article key={expense.id} className="rounded-2xl bg-cream/60 p-3">
+              <article key={`${item.kind}-${item.id}`} className="rounded-2xl bg-cream/60 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-ink">{category?.icon} {category?.name ?? "未分類"}</p>
-                    <p className="mt-1 text-xs font-bold text-ink/55">{expense.location || expense.memo || "場所・メモなし"} / {getExpensePayerLabel(expense)} / {getPaymentMethodLabel(data, expense)} / {targetLabels[expense.target]}</p>
+                    {item.kind === "fixed_cost" ? (
+                      <p className="mt-1 text-xs font-bold text-ink/55">{item.label} / 固定費（毎月）</p>
+                    ) : (
+                      <p className="mt-1 text-xs font-bold text-ink/55">
+                        {item.expense!.location || item.expense!.memo || "場所・メモなし"} / {getExpensePayerLabel(item.expense!)} / {getPaymentMethodLabel(data, item.expense!)} / {targetLabels[item.expense!.target]}
+                      </p>
+                    )}
                   </div>
-                  <p className="shrink-0 text-sm font-black text-ink">{yen(expense.amount)}</p>
+                  <p className="shrink-0 text-sm font-black text-ink">{yen(item.amount)}</p>
                 </div>
               </article>
             );

@@ -746,20 +746,35 @@ export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "
   };
 }
 
+export type CalendarItem = {
+  id: string;
+  categoryId: string;
+  label: string;
+  amount: number;
+  kind: "expense" | "fixed_cost";
+  expense?: Expense;
+};
+
 export function getCalendarDaySummaries(data: BudgetData, referenceDate = new Date()) {
   const period = getMonthBudgetPeriod(referenceDate);
   const dailyTotals = new Map<string, number>();
-  const dailyExpenses = new Map<string, Expense[]>();
+  const dailyItems = new Map<string, CalendarItem[]>();
+  const addItem = (date: string, item: CalendarItem) => {
+    dailyTotals.set(date, (dailyTotals.get(date) ?? 0) + item.amount);
+    dailyItems.set(date, [...(dailyItems.get(date) ?? []), item]);
+  };
   getMonthScopedData(data, referenceDate).expenses.forEach((expense) => {
-    dailyTotals.set(expense.date, (dailyTotals.get(expense.date) ?? 0) + expense.amount);
-    dailyExpenses.set(expense.date, [...(dailyExpenses.get(expense.date) ?? []), expense]);
+    addItem(expense.date, { id: expense.id, categoryId: expense.categoryId, label: expense.location?.trim() || expense.memo || "支出", amount: expense.amount, kind: "expense", expense });
+  });
+  getActiveFixedCosts(data, referenceDate).forEach((cost) => {
+    addItem(dateFromMonthDay(period.monthKey, cost.paidOn), { id: cost.id, categoryId: cost.categoryId, label: cost.name, amount: cost.amount, kind: "fixed_cost" });
   });
   const firstWeekday = new Date(Date.UTC(period.year, period.month - 1, 1)).getUTCDay();
-  const cells: Array<{ date: string; day: number | null; total: number; expenses: Expense[]; inMonth: boolean }> = [];
-  for (let i = 0; i < firstWeekday; i += 1) cells.push({ date: "", day: null, total: 0, expenses: [], inMonth: false });
+  const cells: Array<{ date: string; day: number | null; total: number; items: CalendarItem[]; inMonth: boolean }> = [];
+  for (let i = 0; i < firstWeekday; i += 1) cells.push({ date: "", day: null, total: 0, items: [], inMonth: false });
   for (let day = 1; day <= period.totalDays; day += 1) {
     const date = `${period.monthKey}-${pad2(day)}`;
-    cells.push({ date, day, total: dailyTotals.get(date) ?? 0, expenses: dailyExpenses.get(date) ?? [], inMonth: true });
+    cells.push({ date, day, total: dailyTotals.get(date) ?? 0, items: dailyItems.get(date) ?? [], inMonth: true });
   }
   return { period, cells };
 }
