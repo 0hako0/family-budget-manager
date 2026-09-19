@@ -1,18 +1,26 @@
 import Link from "next/link";
 import { deleteExpense } from "@/app/actions";
-import { getMonthlyPaymentMethodBreakdown, getMonthlySpendingInsight } from "@/lib/budget";
+import { getMonthlyCashOutflow, getMonthlyPaymentMethodBreakdown, getMonthlySpendingInsight } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import { getMonthBudgetPeriod } from "@/lib/date";
 import { yen } from "@/lib/format";
 
-type SpendingTab = "categories" | "locations" | "expenses" | "payments";
+type SpendingTab = "categories" | "locations" | "expenses" | "payments" | "cashflow";
 
 const tabs: { id: SpendingTab; label: string }[] = [
   { id: "categories", label: "カテゴリ" },
   { id: "locations", label: "店舗" },
   { id: "expenses", label: "支出一覧" },
-  { id: "payments", label: "支払い方法" }
+  { id: "payments", label: "支払方法" },
+  { id: "cashflow", label: "現金" }
 ];
+
+const cashOutflowTypeLabel: Record<string, string> = {
+  fixed_cost: "固定費",
+  loan: "ローン",
+  cash_expense: "現金支出",
+  credit_card: "クレカ引き落とし"
+};
 
 export default async function SpendingPage({ searchParams }: { searchParams?: { tab?: string; q?: string } }) {
   const data = await getBudgetData();
@@ -20,6 +28,7 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
   const period = getMonthBudgetPeriod(referenceDate);
   const insight = getMonthlySpendingInsight(data, referenceDate);
   const paymentMethods = getMonthlyPaymentMethodBreakdown(data, referenceDate);
+  const cashOutflow = getMonthlyCashOutflow(data, referenceDate);
   const activeTab = tabs.some((tab) => tab.id === searchParams?.tab) ? (searchParams?.tab as SpendingTab) : "categories";
   const query = (searchParams?.q ?? "").trim().toLowerCase();
   const filteredCategories = insight.categories.filter((item) => item.name.toLowerCase().includes(query));
@@ -73,7 +82,7 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
             />
           </form>
 
-          <nav className="grid grid-cols-4 gap-1 rounded-[20px] bg-white p-1 shadow-sm" aria-label="支出詳細タブ">
+          <nav className="grid grid-cols-5 gap-1 rounded-[20px] bg-white p-1 shadow-sm" aria-label="支出詳細タブ">
             {tabs.map((tab) => (
               <Link
                 key={tab.id}
@@ -177,6 +186,32 @@ export default async function SpendingPage({ searchParams }: { searchParams?: { 
                   <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 p-3 text-sm font-bold">
                     <span className="min-w-0 truncate text-ink">{item.label}</span>
                     <strong className="shrink-0 text-ink">{yen(item.amount)}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {activeTab === "cashflow" ? (
+            <section className="rounded-[22px] bg-white p-4 shadow-sm">
+              <h2 className="text-base font-black text-ink">今月の実際の支出（現金ベース）</h2>
+              <p className="mt-1 text-xs font-bold text-ink/45">クレカは前月分の利用額が今月引き落とされる前提で計算しています。「今月の支出」（使った日基準）とは別の金額になります。</p>
+              <p className="mt-3 text-3xl font-black text-ink">{yen(cashOutflow.total)}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-ink/55">
+                <p>固定費 {yen(cashOutflow.fixedCostTotal)}</p>
+                <p>ローン {yen(cashOutflow.loanTotal)}</p>
+                <p>現金支出 {yen(cashOutflow.cashExpenseTotal)}</p>
+                <p>クレカ引き落とし {yen(cashOutflow.creditCardTotal)}</p>
+              </div>
+              <div className="mt-4 grid gap-2">
+                {cashOutflow.rows.length === 0 ? <p className="rounded-2xl bg-cream/60 p-3 text-sm font-bold text-ink/55">今月の支出はまだありません</p> : null}
+                {cashOutflow.rows.map((row) => (
+                  <div key={row.id} className="flex items-center justify-between gap-3 rounded-2xl bg-cream/60 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-ink">{row.label}</p>
+                      <p className="mt-1 text-xs font-bold text-ink/50">{row.date.replaceAll("-", "/")} / {cashOutflowTypeLabel[row.type]}</p>
+                    </div>
+                    <strong className="shrink-0 text-sm text-ink">{yen(row.amount)}</strong>
                   </div>
                 ))}
               </div>
