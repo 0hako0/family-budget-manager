@@ -5,6 +5,7 @@ import { LastUpdated } from "@/components/LastUpdated";
 import { MonthlySnapshotRunner } from "@/components/MonthlySnapshotRunner";
 import {
   getBudgetConsumption,
+  getCategoryBudgetSuggestions,
   getMonthlyCategoryBudgetProgress,
   getMemberBurdenShares,
   getMonthlyCashOutflow,
@@ -28,6 +29,8 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   const totals = getTotals(data, referenceDate);
   const remainingDays = getRemainingDays(referenceDate);
   const budgetUsage = getMonthlyCategoryBudgetProgress(data, referenceDate).slice(0, 3);
+  const budgetSuggestions = getCategoryBudgetSuggestions(data, referenceDate);
+  const hasUnbudgetedSuggestions = data.categories.some((category) => category.kind === "expense" && !category.archived && !category.monthlyBudget && budgetSuggestions[category.id]);
   const upcomingPayments = getUpcomingPayments(data, referenceDate).slice(0, 3);
   const sharedCard = getSharedCreditCardSummary(data, referenceDate);
   const consumption = getBudgetConsumption(data, referenceDate);
@@ -189,6 +192,12 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
             <Link href="/reports" prefetch className="text-sm font-bold text-leaf">詳しく見る</Link>
           </div>
           <CategoryBudgetList items={budgetUsage} compact />
+          {hasUnbudgetedSuggestions ? (
+            <Link href="/reports" prefetch className="mt-3 flex min-h-11 items-center justify-between rounded-2xl bg-emerald-50 px-3 text-xs font-bold text-leaf transition active:scale-[0.98]">
+              <span>予算未設定のカテゴリに提案があります</span>
+              <span>›</span>
+            </Link>
+          ) : null}
         </section>
       ) : null}
 

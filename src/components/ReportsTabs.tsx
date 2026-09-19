@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { closeCurrentMonth } from "@/app/actions";
+import { closeCurrentMonth, saveCategory } from "@/app/actions";
 import { CategoryBudgetList } from "@/components/CategoryBudgetList";
 import { CategoryPieChart, CategoryTrendChart, MonthlyTrendChart } from "@/components/Charts";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
@@ -38,7 +38,7 @@ const targetLabels: Record<ExpenseTarget, string> = {
   partner_only: "パートナーのみ"
 };
 
-export function ReportsTabs({ data }: { data: BudgetData }) {
+export function ReportsTabs({ data, budgetSuggestions = {} }: { data: BudgetData; budgetSuggestions?: Record<string, number> }) {
   const currentPeriod = getCurrentMonthPeriodJST();
   const [tab, setTab] = useState<(typeof tabs)[number]>("カテゴリ別");
   const [target, setTarget] = useState<CompareTarget>("last_month");
@@ -55,6 +55,10 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
     [data, scopedData.expenses]
   );
   const visibleCategoryRows = useMemo(() => comparison.categoryRows.filter((row) => row.currentValue > 0 || row.comparedValue > 0), [comparison.categoryRows]);
+  const unbudgetedSuggestions = useMemo(
+    () => data.categories.filter((category) => category.kind === "expense" && !category.archived && !category.monthlyBudget && budgetSuggestions[category.id]),
+    [data.categories, budgetSuggestions]
+  );
 
   const isCurrentMonth = monthKey === currentPeriod.monthKey;
 
@@ -97,11 +101,41 @@ export function ReportsTabs({ data }: { data: BudgetData }) {
       </div>
 
       {tab === "カテゴリ別" ? (
-        <section className="rounded-[22px] bg-white p-4 shadow-sm">
-          <h2 className="text-base font-black text-ink">カテゴリ予算</h2>
-          <div className="mt-3"><CategoryBudgetList items={categoryBudgetItems} /></div>
-          {categoryData.length > 0 ? <CategoryPieChart data={categoryData} /> : <p className="mt-4 rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">この月の支出はまだありません</p>}
-        </section>
+        <>
+          <section className="rounded-[22px] bg-white p-4 shadow-sm">
+            <h2 className="text-base font-black text-ink">カテゴリ予算</h2>
+            <div className="mt-3"><CategoryBudgetList items={categoryBudgetItems} /></div>
+            {categoryData.length > 0 ? <CategoryPieChart data={categoryData} /> : <p className="mt-4 rounded-2xl bg-cream/60 p-4 text-sm font-bold text-ink/60">この月の支出はまだありません</p>}
+          </section>
+
+          {unbudgetedSuggestions.length > 0 ? (
+            <section className="rounded-[22px] border-2 border-dashed border-leaf/25 bg-emerald-50/40 p-4">
+              <h2 className="text-base font-black text-ink">予算未設定カテゴリの提案</h2>
+              <p className="mt-1 text-xs font-bold text-ink/50">直近3か月の実績平均です。設定すると、この画面上部のカテゴリ予算にも反映されます。</p>
+              <div className="mt-3 grid gap-2">
+                {unbudgetedSuggestions.map((category) => (
+                  <form key={category.id} action={saveCategory} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3">
+                    <input type="hidden" name="id" value={category.id} />
+                    <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
+                    <input type="hidden" name="kind" value={category.kind} />
+                    <input type="hidden" name="name" value={category.name} />
+                    <input type="hidden" name="icon" value={category.icon} />
+                    <input type="hidden" name="color" value={category.color} />
+                    <input type="hidden" name="sortOrder" value={category.sortOrder} />
+                    <input type="hidden" name="monthlyBudget" value={budgetSuggestions[category.id]} />
+                    {category.favorite ? <input type="hidden" name="favorite" value="on" /> : null}
+                    {category.hidden ? <input type="hidden" name="hidden" value="on" /> : null}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black text-ink">{category.icon} {category.name}</p>
+                      <p className="text-xs font-bold text-ink/55">月予算を{yen(budgetSuggestions[category.id])}にする</p>
+                    </div>
+                    <FormSubmitButton idleLabel="設定する" pendingLabel="設定中..." className="min-h-10 shrink-0 rounded-xl bg-leaf px-4 text-xs font-black text-white transition active:scale-[0.98] disabled:opacity-50" />
+                  </form>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </>
       ) : null}
 
       {tab === "月別推移" ? (
