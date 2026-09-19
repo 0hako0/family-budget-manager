@@ -5,6 +5,7 @@ import { inputClass } from "@/components/FormCard";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { InviteCodeCard } from "@/components/InviteCodeCard";
 import { MetricCard } from "@/components/MetricCard";
+import { getCategoryBudgetSuggestions } from "@/lib/budget";
 import { getBudgetData } from "@/lib/data";
 import type { BurdenRule } from "@/lib/types";
 
@@ -36,6 +37,7 @@ export default async function SettingsPage({
   const data = await getBudgetData();
   const savedMessage = searchParams?.saved ? successMessages[searchParams.saved] : undefined;
   const creditCards = data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card");
+  const budgetSuggestions = getCategoryBudgetSuggestions(data);
 
   return (
     <div className="grid gap-5">
@@ -106,7 +108,7 @@ export default async function SettingsPage({
         <summary className="min-h-11 cursor-pointer list-none py-2 text-base font-black text-ink">カテゴリ設定</summary>
         <div className="mt-3">
           {searchParams?.categoryError ? <p className="mb-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-warn">{searchParams.categoryError}</p> : null}
-          <CategoryManager initialCategories={data.categories} householdGroupId={data.householdGroupId} />
+          <CategoryManager initialCategories={data.categories} householdGroupId={data.householdGroupId} budgetSuggestions={budgetSuggestions} />
         </div>
       </details>
 

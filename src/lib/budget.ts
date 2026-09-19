@@ -603,6 +603,30 @@ export function getMonthlyTrend(data: BudgetData, referenceDate = new Date()) {
 }
 
 /**
+ * 予算未設定カテゴリへの提案額。直近Nか月（今月は含まない）の実績平均を、
+ * 100円単位に丸めて返す。締め済みの月は保存済みサマリーを使う。
+ */
+export function getCategoryBudgetSuggestions(data: BudgetData, referenceDate = new Date(), months = 3) {
+  const currentMonthKey = getMonthBudgetPeriod(referenceDate).monthKey;
+  const monthKeys = Array.from({ length: months }, (_, index) => shiftMonthKey(currentMonthKey, -(index + 1)));
+  const amountsByMonth = monthKeys.map((monthKey) => {
+    const stored = data.monthlySummaries.find((summary) => summary.month === monthKey);
+    if (stored) return stored.categoryExpenses ?? {};
+    return Object.fromEntries(groupExpensesByCategory(data.expenses.filter((expense) => expense.date.slice(0, 7) === monthKey)).map((item) => [item.categoryId, item.value]));
+  });
+  const totalByCategory = new Map<string, number>();
+  amountsByMonth.forEach((amounts) => {
+    Object.entries(amounts).forEach(([categoryId, amount]) => totalByCategory.set(categoryId, (totalByCategory.get(categoryId) ?? 0) + amount));
+  });
+  const suggestions: Record<string, number> = {};
+  totalByCategory.forEach((total, categoryId) => {
+    if (total <= 0) return;
+    suggestions[categoryId] = Math.round(total / months / 100) * 100;
+  });
+  return suggestions;
+}
+
+/**
  * 変動費のカテゴリ別・月別推移。締め済みの月は保存済みサマリー、未締めの月は
  * その月の支出から集計する。上位カテゴリ以外は「その他」にまとめる。
  */
