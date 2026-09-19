@@ -66,7 +66,14 @@ function FixedCostPanel({ data, categories }: { data: BudgetData; categories: Ar
       </details>
       <ItemList empty="まだ固定費がありません">
         {data.fixedCosts.map((cost) => (
-          <ItemCard key={cost.id} title={cost.name} amount={yen(cost.amount)} meta={`${getCategory(data, cost.categoryId)?.name ?? "未分類"} / 毎月${cost.paidOn}日 / 次回 ${nextMonthlyDate(cost.paidOn)} / ${cost.payer || "支払者未設定"}`}>
+          <ItemCard
+            key={cost.id}
+            title={cost.name}
+            amount={yen(cost.amount)}
+            meta={`${getCategory(data, cost.categoryId)?.name ?? "未分類"} / 毎月${cost.paidOn}日 / 次回 ${nextMonthlyDate(cost.paidOn)} / ${cost.payer || "支払者未設定"}${
+              cost.paymentMethodType === "shared_credit_card" ? ` / ${data.commonPaymentMethods.find((method) => method.id === cost.paymentMethodId)?.name ?? "共通クレカ"}払い` : ""
+            }`}
+          >
             {cost.reviewMemo ? <p>{cost.reviewMemo}</p> : null}
             <p>{cost.recurring ? "毎月繰り返し: あり" : "毎月繰り返し: なし"} / {activePeriodLabel(cost)}</p>
             <details className="mt-3 rounded-2xl bg-white p-3">
@@ -91,6 +98,7 @@ function FixedCostForm({ data, categories, cost }: { data: BudgetData; categorie
       <Field label="金額"><input className={inputClass} name="amount" type="number" inputMode="numeric" defaultValue={cost?.amount ?? ""} required /></Field>
       <Field label="支払日"><input className={inputClass} name="paidOn" type="number" inputMode="numeric" min={1} max={31} defaultValue={cost?.paidOn ?? 1} /></Field>
       <Field label="支払者"><PayerSelect data={data} name="payer" defaultValue={cost?.payer} /></Field>
+      <Field label="支払い方法"><FixedCostPaymentMethodSelect data={data} defaultValue={cost?.paymentMethodId} /></Field>
       <Field label="カテゴリ"><CategorySelect categories={categories} defaultValue={cost?.categoryId} /></Field>
       <Field label="見直しメモ"><input className={inputClass} name="reviewMemo" defaultValue={cost?.reviewMemo ?? ""} /></Field>
       <Field label="毎月繰り返し"><RecurringSelect defaultValue={cost?.recurring ?? true} /></Field>
@@ -290,6 +298,18 @@ function PayerSelect({ data, name, defaultValue, includeSharedWallet = true }: {
       <option value="">未選択</option>
       {data.members.map((member) => <option key={member.id}>{member.name}</option>)}
       {includeSharedWallet ? <option value="共通財布">共通財布</option> : null}
+    </select>
+  );
+}
+
+function FixedCostPaymentMethodSelect({ data, defaultValue }: { data: BudgetData; defaultValue?: string }) {
+  const creditCards = data.commonPaymentMethods.filter((method) => method.type === "shared_credit_card" && !method.archived);
+  return (
+    <select className={inputClass} name="paymentMethodId" defaultValue={defaultValue ?? ""}>
+      <option value="">現金・口座から直接支払い</option>
+      {creditCards.map((method) => (
+        <option key={method.id} value={method.id}>{method.name}（クレカ払い）</option>
+      ))}
     </select>
   );
 }
