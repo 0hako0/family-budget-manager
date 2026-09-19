@@ -7,6 +7,7 @@ import {
   getBudgetConsumption,
   getMonthlyCategoryBudgetProgress,
   getMemberBurdenShares,
+  getMonthlyCashOutflow,
   getMonthlyExpenseSummary,
   getMonthlyPayerBreakdown,
   getNextIncome,
@@ -32,6 +33,7 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
   const consumption = getBudgetConsumption(data, referenceDate);
   const monthlyExpense = getMonthlyExpenseSummary(data, referenceDate);
   const spendingInsight = getMonthlySpendingInsight(data, referenceDate);
+  const cashOutflow = getMonthlyCashOutflow(data, referenceDate);
   const payerBreakdown = getMonthlyPayerBreakdown(data, referenceDate).filter((row) => row.amount > 0);
   const nextIncome = getNextIncome(data, referenceDate);
   const burdenShares = getMemberBurdenShares(data);
@@ -80,6 +82,13 @@ export default async function Home({ searchParams }: { searchParams?: { error?: 
               <p>{monthlyExpense.expenseCount}件</p>
             </div>
             <p className="mt-2 text-[11px] font-bold text-ink/40">変動費＋固定費＋ローン返済の合計です（貯金・投資の積立は含みません）。共通クレカは変動費の内訳です。</p>
+            <Link href="/spending?basis=cash" prefetch className="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-3 py-2 text-xs font-bold text-ink/65 transition active:scale-[0.98]">
+              <span>今月の実支出（引き落とし基準）</span>
+              <span className="flex items-center gap-1 font-black text-ink">
+                {yen(cashOutflow.total)}
+                <span className="text-leaf">›</span>
+              </span>
+            </Link>
             {spendingInsight.summary.variableExpenseTotal > 0 ? (
               <div className="mt-3 grid gap-3">
                 <div className="rounded-2xl bg-white/70 p-3">
