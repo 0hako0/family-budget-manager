@@ -10,7 +10,6 @@ import type {
   HomeWidgetSettings,
   HouseholdMember,
   PaymentMethodType,
-  ReceiptLineItem,
   ReceiptRetentionPolicy,
   SharedWalletTransactionType
 } from "./types";
@@ -235,8 +234,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       receiptOcrText: expense.receipt_ocr_text ? String(expense.receipt_ocr_text) : undefined,
       receiptConfidence: expense.receipt_confidence == null ? undefined : Number(expense.receipt_confidence),
       receiptExpiresAt: expense.receipt_expires_at ? String(expense.receipt_expires_at) : undefined,
-      receiptCompressedSize: expense.receipt_compressed_size == null ? undefined : Number(expense.receipt_compressed_size),
-      receiptItems: mapReceiptItems(expense.receipt_items)
+      receiptCompressedSize: expense.receipt_compressed_size == null ? undefined : Number(expense.receipt_compressed_size)
     })),
     commonPaymentMethods: (paymentMethodsResult.data ?? []).map((row: Record<string, unknown>) => ({
       id: String(row.id),
@@ -324,20 +322,6 @@ function mapReceiptRetentionPolicy(value: string): ReceiptRetentionPolicy {
 function mapStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const items = value.map((item) => String(item ?? "").trim()).filter(Boolean);
-  return items.length > 0 ? items : undefined;
-}
-
-function mapReceiptItems(value: unknown): ReceiptLineItem[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const items = value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const name = String((item as Record<string, unknown>).name ?? "").trim();
-      const price = Number((item as Record<string, unknown>).price);
-      if (!name || !Number.isFinite(price) || price <= 0) return null;
-      return { name, price };
-    })
-    .filter((item): item is ReceiptLineItem => item !== null);
   return items.length > 0 ? items : undefined;
 }
 
