@@ -10,6 +10,7 @@ import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePaye
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
 import { compressReceiptImage, uploadReceiptImage } from "@/lib/receipt-image";
+import { recognizeReceiptText, type ReceiptOcrResult } from "@/lib/receipt-ocr";
 import type { BudgetData, Category, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
@@ -42,13 +43,26 @@ function ExpenseDeleteForm({ id, householdGroupId }: { id: string; householdGrou
   );
 }
 
-function ReceiptField({ householdGroupId, saveReceiptImages, existingPath }: { householdGroupId?: string; saveReceiptImages: boolean; existingPath?: string }) {
+function ReceiptField({
+  householdGroupId,
+  saveReceiptImages,
+  existingPath,
+  onOcrResult
+}: {
+  householdGroupId?: string;
+  saveReceiptImages: boolean;
+  existingPath?: string;
+  onOcrResult?: (result: ReceiptOcrResult) => void;
+}) {
   const [path, setPath] = useState(existingPath ?? "");
   const [preview, setPreview] = useState("");
   const [existingUrl, setExistingUrl] = useState("");
   const [status, setStatus] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [isReadingText, setIsReadingText] = useState(false);
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
+  const [ocrText, setOcrText] = useState("");
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
 
   if (!saveReceiptImages) {
     return (
@@ -65,6 +79,8 @@ function ReceiptField({ householdGroupId, saveReceiptImages, existingPath }: { h
       <div className="grid gap-3 pt-2">
         <input type="hidden" name="receiptImageUrl" value={path} />
         <input type="hidden" name="receiptCompressedSize" value={compressedSize ?? ""} />
+        <input type="hidden" name="receiptOcrText" value={ocrText} />
+        <input type="hidden" name="receiptConfidence" value={ocrConfidence ?? ""} />
         {existingPath && path === existingPath && !existingUrl ? (
           <button
             type="button"
@@ -90,15 +106,25 @@ function ReceiptField({ householdGroupId, saveReceiptImages, existingPath }: { h
             const file = event.target.files?.[0];
             setStatus("");
             setPreview("");
+            setOcrText("");
+            setOcrConfidence(null);
             if (!file) return;
             if (!householdGroupId) {
               setStatus("家計グループを確認できませんでした。");
               return;
             }
             setIsBusy(true);
+            let compressed;
             try {
-              const compressed = await compressReceiptImage(file);
+              compressed = await compressReceiptImage(file);
               setPreview(compressed.previewUrl);
+            } catch (compressError) {
+              setStatus(compressError instanceof Error ? compressError.message : "画像の圧縮に失敗しました。");
+              setIsBusy(false);
+              return;
+            }
+
+            try {
               const uploadedPath = await uploadReceiptImage(compressed, householdGroupId);
               setPath(uploadedPath);
               setCompressedSize(compressed.size);
@@ -108,11 +134,31 @@ function ReceiptField({ householdGroupId, saveReceiptImages, existingPath }: { h
             } finally {
               setIsBusy(false);
             }
+
+            // アップロードの成否に関わらず、撮った写真の文字は読み取れるので試す。
+            setIsReadingText(true);
+            try {
+              const ocrResult = await recognizeReceiptText(compressed.blob);
+              setOcrText(ocrResult.text);
+              setOcrConfidence(ocrResult.confidence);
+              onOcrResult?.(ocrResult);
+            } catch {
+              // 文字の読み取りに失敗しても致命的エラーにはしない。
+            } finally {
+              setIsReadingText(false);
+            }
           }}
         />
         {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for a freshly selected receipt image */}
         {preview ? <img src={preview} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
         {isBusy ? <p className="text-xs font-bold text-ink/50">アップロード中...</p> : null}
+        {isReadingText ? <p className="text-xs font-bold text-ink/50">文字を読み取り中...</p> : null}
+        {ocrText && !isReadingText ? (
+          <details className="rounded-2xl bg-white px-4 py-3">
+            <summary className="cursor-pointer list-none text-xs font-bold text-ink/60">読み取った文字（参考値、間違っている場合があります）</summary>
+            <p className="mt-2 whitespace-pre-wrap text-xs text-ink/70">{ocrText}</p>
+          </details>
+        ) : null}
         {path && !isBusy ? (
           <button
             type="button"
@@ -122,6 +168,8 @@ function ReceiptField({ householdGroupId, saveReceiptImages, existingPath }: { h
               setPreview("");
               setExistingUrl("");
               setCompressedSize(null);
+              setOcrText("");
+              setOcrConfidence(null);
               setStatus("この支出からレシート写真を外します（保存時に反映されます）。");
             }}
           >
@@ -139,6 +187,8 @@ function ExpenseEditForm({ data, expense, categories, onCancel }: { data: Budget
   const [categoryId, setCategoryId] = useState(expense.categoryId);
   const [payer, setPayer] = useState(getExpensePayerLabel(expense));
   const [paymentMethodValue, setPaymentMethodValue] = useState(`${initialPaymentType}:${expense.paymentMethodId ?? ""}`);
+  const [amount, setAmount] = useState(String(expense.amount));
+  const [amountSuggestion, setAmountSuggestion] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   return (
@@ -158,7 +208,7 @@ function ExpenseEditForm({ data, expense, categories, onCancel }: { data: Budget
       <input type="hidden" name="id" value={expense.id} />
       <input type="hidden" name="householdGroupId" value={data.householdGroupId ?? ""} />
       <input type="hidden" name="memberId" value={data.currentMemberId ?? ""} />
-      <Field label="金額"><input name="amount" type="number" inputMode="numeric" defaultValue={expense.amount} className="mobile-input" /></Field>
+      <Field label="金額"><input name="amount" type="number" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} className="mobile-input" /></Field>
       <Field label="カテゴリ">
         <select name="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="mobile-input">
           <option value="">選択してください</option>
@@ -176,7 +226,24 @@ function ExpenseEditForm({ data, expense, categories, onCancel }: { data: Budget
       <Field label="お店・場所"><input name="location" defaultValue={expense.location ?? ""} className="mobile-input" placeholder="スーパー、Amazon など" /></Field>
       <Field label="メモ"><input name="memo" defaultValue={expense.memo} className="mobile-input" placeholder="週末まとめ買い など" /></Field>
       <input type="hidden" name="receiptRetentionPolicy" value={data.settings.receiptRetentionPolicy} />
-      <ReceiptField householdGroupId={data.householdGroupId} saveReceiptImages={Boolean(data.settings.saveReceiptImages)} existingPath={expense.receiptImageUrl} />
+      <ReceiptField
+        householdGroupId={data.householdGroupId}
+        saveReceiptImages={Boolean(data.settings.saveReceiptImages)}
+        existingPath={expense.receiptImageUrl}
+        onOcrResult={(result) => setAmountSuggestion(result.amountGuess ?? null)}
+      />
+      {amountSuggestion && amountSuggestion !== Number(amount) ? (
+        <button
+          type="button"
+          className="rounded-2xl bg-emerald-50 px-4 py-3 text-left text-xs font-bold text-leaf transition active:scale-[0.98]"
+          onClick={() => {
+            setAmount(String(amountSuggestion));
+            setAmountSuggestion(null);
+          }}
+        >
+          レシートから¥{amountSuggestion.toLocaleString()}を検出しました。金額欄に反映する ›
+        </button>
+      ) : null}
       {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{error}</p> : null}
       <div className="grid grid-cols-2 gap-2">
         <button className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base font-black text-ink transition active:scale-[0.98]" type="button" onClick={onCancel}>
@@ -205,6 +272,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [error, setError] = useState("");
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [receiptFieldKey, setReceiptFieldKey] = useState(0);
+  const [amountSuggestion, setAmountSuggestion] = useState<number | null>(null);
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
 
   const currentMonthExpenses = useMemo(() => getMonthScopedData(data).expenses, [data]);
@@ -280,6 +348,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
           setAmount("");
           setLocation("");
           setMemo("");
+          setAmountSuggestion(null);
           setReceiptFieldKey((value) => value + 1);
         }}
         onSubmit={(event) => {
@@ -367,7 +436,24 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
         </details>
 
         <input type="hidden" name="receiptRetentionPolicy" value={data.settings.receiptRetentionPolicy} />
-        <ReceiptField key={receiptFieldKey} householdGroupId={data.householdGroupId} saveReceiptImages={Boolean(data.settings.saveReceiptImages)} />
+        <ReceiptField
+          key={receiptFieldKey}
+          householdGroupId={data.householdGroupId}
+          saveReceiptImages={Boolean(data.settings.saveReceiptImages)}
+          onOcrResult={(result) => setAmountSuggestion(result.amountGuess ?? null)}
+        />
+        {amountSuggestion && amountSuggestion !== Number(amount) ? (
+          <button
+            type="button"
+            className="mt-3 w-full rounded-2xl bg-emerald-50 px-4 py-3 text-left text-xs font-bold text-leaf transition active:scale-[0.98]"
+            onClick={() => {
+              setAmount(String(amountSuggestion));
+              setAmountSuggestion(null);
+            }}
+          >
+            レシートから¥{amountSuggestion.toLocaleString()}を検出しました。金額欄に反映する ›
+          </button>
+        ) : null}
 
         {displayError ? <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{displayError}</p> : null}
         {categories.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink/60">支出カテゴリがまだありません。この画面で新しいカテゴリを追加できます。</p> : null}
