@@ -78,6 +78,13 @@ check("Pull To Refresh", includes("src/components/PullToRefresh.tsx", "離して
 check("最終更新時刻", home.includes("LastUpdated"));
 check("支出入力の前回値記憶", expenseEntry.includes("family-budget:expense-quick-entry"));
 check("OCR画像圧縮", includes("src/lib/receipt-image.ts", "image/jpeg") && includes("src/lib/receipt-image.ts", "1280"));
+check(
+  "レシートOCRで金額を提案",
+  includes("src/lib/receipt-ocr.ts", "async function recognizeReceiptText") &&
+    includes("src/lib/receipt-ocr.ts", "function guessAmountFromReceiptText") &&
+    expenseEntry.includes("recognizeReceiptText") &&
+    expenseEntry.includes("を検出しました")
+);
 check("レシート保存期間設定", settings.includes("receiptRetentionPolicy") && schema.includes("receipt_retention_policy"));
 check("改善要望メモ", settings.includes("improvementNotes") && schema.includes("improvement_notes"));
 check("Realtime publication SQL", includes("supabase/migrations/014_realtime_publication.sql", "supabase_realtime"));
