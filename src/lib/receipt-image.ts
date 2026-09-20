@@ -41,7 +41,7 @@ export async function uploadReceiptImage(compressed: CompressedReceiptImage, hou
   return path;
 }
 
-function loadImage(url: string) {
+export function loadImage(url: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);

@@ -85,6 +85,26 @@ check(
     expenseEntry.includes("recognizeReceiptText") &&
     expenseEntry.includes("を検出しました")
 );
+check(
+  "レシートOCRは登録番号やバーコードを金額と誤認しない",
+  includes("src/lib/receipt-ocr.ts", "MAX_PLAUSIBLE_AMOUNT") &&
+    includes("src/lib/receipt-ocr.ts", "登録番号") &&
+    includes("src/lib/receipt-ocr.ts", "codeLinePattern")
+);
+check(
+  "レシートOCRで商品明細も登録",
+  includes("src/lib/receipt-ocr.ts", "function extractLineItemsFromReceiptText") &&
+    expenseEntry.includes("receiptItems") &&
+    actions.includes("function parseReceiptItems") &&
+    schema.includes("receipt_items")
+);
+check(
+  "長いレシートは複数枚に分けて撮影できる",
+  expenseEntry.includes("receiptExtraImageUrls") &&
+    expenseEntry.includes("続きの写真") &&
+    actions.includes("function parseReceiptExtraImageUrls") &&
+    schema.includes("receipt_extra_image_urls")
+);
 check("レシート保存期間設定", settings.includes("receiptRetentionPolicy") && schema.includes("receipt_retention_policy"));
 check("改善要望メモ", settings.includes("improvementNotes") && schema.includes("improvement_notes"));
 check("Realtime publication SQL", includes("supabase/migrations/014_realtime_publication.sql", "supabase_realtime"));
