@@ -66,12 +66,14 @@ export function guessAmountFromReceiptText(text: string): number | undefined {
   return Math.max(...allAmounts);
 }
 
-/** 商品明細としては扱わない行（合計・小計・税・支払い方法・店舗情報・日付時刻など）。 */
+/** 商品明細としては扱わない行（合計・小計・税・支払い方法・店舗情報・日付時刻・点数など）。 */
 const excludeItemLinePattern =
-  /(合\s*計|小\s*計|税|預か|お釣|point|ポイント|jan|カード|現金|クレジット|ペイ|支払|レシート|領収|ありがとう|様|tel|電話|〒|http|登録番号|クーポン|割引|会員|レジ|責任者|営業時間|住所|店$|\d{4}年|\d{1,2}:\d{2})/i;
-const lineItemPattern = /^(.{2,30}?)[\s　]*[¥￥]?\s?([0-9][0-9,]{0,6})\s?(?:円|軽|内|税)?\*?\s*$/;
+  /(合\s*計|小\s*計|税|預か|お釣|point|ポイント|jan|カード|現金|クレジット|ペイ|支払|レシート|領収|ありがとう|様|tel|電話|〒|http|登録番号|クーポン|割引|会員|レジ|責任者|営業時間|住所|店$|商品数|点数|個数|\d{4}年|\d{1,2}:\d{2}|\d{4}\/\d{1,2}\/\d{1,2})/i;
+/** 金額の後ろに付く注記（円・軽減税率マークなど）。※は全角記号のためASCIIの\*とは別に許可する。 */
+const priceSuffixPattern = "(?:円|軽|内|税|※)?\\*?";
+const lineItemPattern = new RegExp(`^(.{2,30}?)[\\s　]*[¥￥]?\\s?([0-9][0-9,]{0,6})\\s?${priceSuffixPattern}\\s*$`);
 /** 金額らしき数字だけの行（商品名が改行で分かれている場合、直前の行を商品名として結びつける）。 */
-const priceOnlyLinePattern = /^[\s　]*[¥￥]?\s?([0-9][0-9,]{0,6})\s?(?:円|軽|内|税)?\*?\s*$/;
+const priceOnlyLinePattern = new RegExp(`^[\\s　]*[¥￥]?\\s?([0-9][0-9,]{0,6})\\s?${priceSuffixPattern}\\s*$`);
 
 function isSkippableItemLine(line: string): boolean {
   return !line || /^[（(]/.test(line) || /-\s*[0-9]/.test(line) || excludeItemLinePattern.test(line) || codeLinePattern.test(line);

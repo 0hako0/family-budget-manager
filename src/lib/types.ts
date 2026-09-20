@@ -122,6 +122,8 @@ export type Expense = {
   location?: string;
   memo: string;
   receiptImageUrl?: string;
+  /** 長いレシートを複数枚に分けて撮影した場合の2枚目以降。1枚目はreceiptImageUrl。 */
+  receiptExtraImageUrls?: string[];
   receiptOcrText?: string;
   receiptConfidence?: number;
   receiptExpiresAt?: string;

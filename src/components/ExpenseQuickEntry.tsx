@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { createExpense, createExpenseCategoryFromInput, deleteExpense, getReceiptSignedUrl } from "@/app/actions";
@@ -9,8 +9,8 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePayerLabel, getExpensePaymentMethodType, getMonthScopedData, getPaymentMethodLabel } from "@/lib/budget";
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
-import { compressReceiptImage, uploadReceiptImage } from "@/lib/receipt-image";
-import { recognizeReceiptText, type ReceiptLineItem, type ReceiptOcrResult } from "@/lib/receipt-ocr";
+import { compressReceiptImage, uploadReceiptImage, type CompressedReceiptImage } from "@/lib/receipt-image";
+import { extractLineItemsFromReceiptText, guessAmountFromReceiptText, recognizeReceiptText, type ReceiptLineItem, type ReceiptOcrResult } from "@/lib/receipt-ocr";
 import type { BudgetData, Category, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
@@ -43,28 +43,53 @@ function ExpenseDeleteForm({ id, householdGroupId }: { id: string; householdGrou
   );
 }
 
+const MAX_RECEIPT_PHOTOS = 6;
+
+/** 商品明細の同一判定キー（新しく読み取った明細を、すでにある明細と重複させずに追加するために使う）。 */
+function receiptItemKey(item: ReceiptLineItem) {
+  return `${item.name}__${item.price}`;
+}
+
+/** 撮影から保存までの一連の状態を、ストレージへのアップロード結果とは切り離して管理するための単位。
+ *  アップロードが失敗しても、写真のプレビューとOCR結果は見えるままにするため（保存だけがやり直しになる）。 */
+type ReceiptPhoto = {
+  id: string;
+  path: string;
+  previewUrl: string;
+  existingUrl: string;
+  isExisting: boolean;
+};
+
 function ReceiptField({
   householdGroupId,
   saveReceiptImages,
   existingPath,
+  existingExtraPaths,
+  existingOcrText,
+  existingConfidence,
   existingItems,
   onOcrResult
 }: {
   householdGroupId?: string;
   saveReceiptImages: boolean;
   existingPath?: string;
+  existingExtraPaths?: string[];
+  existingOcrText?: string;
+  existingConfidence?: number;
   existingItems?: ReceiptLineItem[];
   onOcrResult?: (result: ReceiptOcrResult) => void;
 }) {
-  const [path, setPath] = useState(existingPath ?? "");
-  const [preview, setPreview] = useState("");
-  const [existingUrl, setExistingUrl] = useState("");
+  const initialPaths = useMemo(() => [...(existingPath ? [existingPath] : []), ...(existingExtraPaths ?? [])], [existingPath, existingExtraPaths]);
+  const ocrTextsRef = useRef<Record<string, string>>(existingPath && existingOcrText ? { [existingPath]: existingOcrText } : {});
+  const [photos, setPhotos] = useState<ReceiptPhoto[]>(
+    initialPaths.map((path) => ({ id: path, path, previewUrl: "", existingUrl: "", isExisting: true }))
+  );
   const [status, setStatus] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [isReadingText, setIsReadingText] = useState(false);
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
-  const [ocrText, setOcrText] = useState("");
-  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
+  const [combinedOcrText, setCombinedOcrText] = useState(existingOcrText ?? "");
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(existingConfidence ?? null);
   const [items, setItems] = useState<ReceiptLineItem[]>(existingItems ?? []);
 
   if (!saveReceiptImages) {
@@ -76,94 +101,145 @@ function ReceiptField({
     );
   }
 
+  const uploadedPaths = photos.map((photo) => photo.path).filter(Boolean);
+
+  function recomputeCombinedText(currentPhotos: ReceiptPhoto[]) {
+    const combined = currentPhotos.map((photo) => ocrTextsRef.current[photo.id]).filter(Boolean).join("\n\n");
+    setCombinedOcrText(combined);
+    return combined;
+  }
+
+  function removePhoto(id: string) {
+    delete ocrTextsRef.current[id];
+    setPhotos((current) => {
+      const next = current.filter((photo) => photo.id !== id);
+      recomputeCombinedText(next);
+      return next;
+    });
+    setStatus("この写真を外します（保存時に反映されます）。");
+  }
+
+  async function handleFileSelected(file: File | undefined) {
+    setStatus("");
+    if (!file) return;
+    if (!householdGroupId) {
+      setStatus("家計グループを確認できませんでした。");
+      return;
+    }
+
+    const id = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `photo-${Date.now()}`;
+    setIsBusy(true);
+    let compressed: CompressedReceiptImage;
+    try {
+      compressed = await compressReceiptImage(file);
+      setPhotos((current) => [...current, { id, path: "", previewUrl: compressed.previewUrl, existingUrl: "", isExisting: false }]);
+    } catch (compressError) {
+      setStatus(compressError instanceof Error ? compressError.message : "画像の圧縮に失敗しました。");
+      setIsBusy(false);
+      return;
+    }
+
+    try {
+      const uploadedPath = await uploadReceiptImage(compressed, householdGroupId);
+      setPhotos((current) => current.map((photo) => (photo.id === id ? { ...photo, path: uploadedPath } : photo)));
+      setCompressedSize(compressed.size);
+      setStatus(`アップロードしました（約${Math.round(compressed.size / 1024)}KB）。保存するには下のボタンを押してください。`);
+    } catch (uploadError) {
+      setStatus(uploadError instanceof Error ? uploadError.message : "画像のアップロードに失敗しました。写真は保存されませんが、下の内容は参考にできます。");
+    } finally {
+      setIsBusy(false);
+    }
+
+    // アップロードの成否に関わらず、撮った写真の文字は読み取れるので試す。
+    // OCRは保存用の圧縮画像より高解像度の画像を内部で別途作るため、元のファイルを渡す。
+    // 複数枚（長いレシートの続きなど）に対応するため、これまでの写真の文字とつなげて合計金額・商品明細を判定し直す。
+    setIsReadingText(true);
+    try {
+      const ocrResult = await recognizeReceiptText(file);
+      ocrTextsRef.current[id] = ocrResult.text;
+      setPhotos((current) => {
+        const combined = recomputeCombinedText(current);
+        const combinedItems = extractLineItemsFromReceiptText(combined);
+        setOcrConfidence(ocrResult.confidence);
+        setItems((currentItems) => {
+          const existingKeys = new Set(currentItems.map(receiptItemKey));
+          const additions = combinedItems.filter((item) => !existingKeys.has(receiptItemKey(item)));
+          return [...currentItems, ...additions];
+        });
+        onOcrResult?.({ text: combined, confidence: ocrResult.confidence, amountGuess: guessAmountFromReceiptText(combined), items: combinedItems });
+        return current;
+      });
+    } catch {
+      // 文字の読み取りに失敗しても致命的エラーにはしない。
+    } finally {
+      setIsReadingText(false);
+    }
+  }
+
   return (
     <details className="mt-3 rounded-2xl bg-cream/55 p-3" open={Boolean(existingPath)}>
       <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシート写真</summary>
       <div className="grid gap-3 pt-2">
-        <input type="hidden" name="receiptImageUrl" value={path} />
+        <input type="hidden" name="receiptImageUrl" value={uploadedPaths[0] ?? ""} />
+        <input type="hidden" name="receiptExtraImageUrls" value={JSON.stringify(uploadedPaths.slice(1))} />
         <input type="hidden" name="receiptCompressedSize" value={compressedSize ?? ""} />
-        <input type="hidden" name="receiptOcrText" value={ocrText} />
+        <input type="hidden" name="receiptOcrText" value={combinedOcrText} />
         <input type="hidden" name="receiptConfidence" value={ocrConfidence ?? ""} />
         <input type="hidden" name="receiptItems" value={JSON.stringify(items)} />
-        {existingPath && path === existingPath && !existingUrl ? (
-          <button
-            type="button"
-            className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 text-sm font-black text-leaf transition active:scale-[0.98]"
-            onClick={async () => {
-              setStatus("");
-              const result = await getReceiptSignedUrl(existingPath);
-              if (result.url) setExistingUrl(result.url);
-              else setStatus(result.error ?? "レシート画像を表示できませんでした。");
-            }}
-          >
-            保存済みのレシートを表示
-          </button>
+        {photos.length > 1 ? <p className="text-xs font-bold text-ink/50">{photos.length}枚の写真をこの支出に添付します（長いレシートの続きなど）。</p> : null}
+        {photos.map((photo, index) => (
+          <div key={photo.id} className="grid gap-2 rounded-2xl bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-bold text-ink/60">{index === 0 ? "1枚目" : `${index + 1}枚目（続き）`}</p>
+              <button
+                type="button"
+                className="min-h-9 rounded-xl border border-warn/30 bg-red-50 px-3 text-xs font-bold text-warn transition active:scale-[0.98]"
+                onClick={() => removePhoto(photo.id)}
+              >
+                この写真を外す
+              </button>
+            </div>
+            {photo.previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob preview for a freshly selected receipt image
+              <img src={photo.previewUrl} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" />
+            ) : photo.existingUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- signed storage URL, not an optimizable static asset
+              <img src={photo.existingUrl} alt="保存済みのレシート" className="max-h-56 w-full rounded-2xl object-cover" />
+            ) : photo.isExisting ? (
+              <button
+                type="button"
+                className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 text-sm font-black text-leaf transition active:scale-[0.98]"
+                onClick={async () => {
+                  setStatus("");
+                  const result = await getReceiptSignedUrl(photo.path);
+                  if (result.url) setPhotos((current) => current.map((p) => (p.id === photo.id ? { ...p, existingUrl: result.url as string } : p)));
+                  else setStatus(result.error ?? "レシート画像を表示できませんでした。");
+                }}
+              >
+                保存済みのレシートを表示
+              </button>
+            ) : null}
+          </div>
+        ))}
+        {photos.length < MAX_RECEIPT_PHOTOS ? (
+          <label className="grid gap-1 text-xs font-bold text-ink/65">
+            {photos.length === 0 ? "レシート写真" : "＋ 続きの写真を追加（長いレシートで全体が収まらない場合）"}
+            <input
+              className="mobile-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              value=""
+              onChange={(event) => handleFileSelected(event.target.files?.[0])}
+            />
+          </label>
         ) : null}
-        {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URL, not an optimizable static asset */}
-        {existingUrl ? <img src={existingUrl} alt="保存済みのレシート" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
-        <input
-          className="mobile-input"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={async (event) => {
-            const file = event.target.files?.[0];
-            setStatus("");
-            setPreview("");
-            setOcrText("");
-            setOcrConfidence(null);
-            setItems([]);
-            if (!file) return;
-            if (!householdGroupId) {
-              setStatus("家計グループを確認できませんでした。");
-              return;
-            }
-            setIsBusy(true);
-            let compressed;
-            try {
-              compressed = await compressReceiptImage(file);
-              setPreview(compressed.previewUrl);
-            } catch (compressError) {
-              setStatus(compressError instanceof Error ? compressError.message : "画像の圧縮に失敗しました。");
-              setIsBusy(false);
-              return;
-            }
-
-            try {
-              const uploadedPath = await uploadReceiptImage(compressed, householdGroupId);
-              setPath(uploadedPath);
-              setCompressedSize(compressed.size);
-              setStatus(`アップロードしました（約${Math.round(compressed.size / 1024)}KB）。保存するには下のボタンを押してください。`);
-            } catch (uploadError) {
-              setStatus(uploadError instanceof Error ? uploadError.message : "画像のアップロードに失敗しました。");
-            } finally {
-              setIsBusy(false);
-            }
-
-            // アップロードの成否に関わらず、撮った写真の文字は読み取れるので試す。
-            // OCRは保存用の圧縮画像より高解像度の画像を内部で別途作るため、元のファイルを渡す。
-            setIsReadingText(true);
-            try {
-              const ocrResult = await recognizeReceiptText(file);
-              setOcrText(ocrResult.text);
-              setOcrConfidence(ocrResult.confidence);
-              setItems(ocrResult.items);
-              onOcrResult?.(ocrResult);
-            } catch {
-              // 文字の読み取りに失敗しても致命的エラーにはしない。
-            } finally {
-              setIsReadingText(false);
-            }
-          }}
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for a freshly selected receipt image */}
-        {preview ? <img src={preview} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
         {isBusy ? <p className="text-xs font-bold text-ink/50">アップロード中...</p> : null}
         {isReadingText ? <p className="text-xs font-bold text-ink/50">文字を読み取り中...</p> : null}
-        {ocrText && !isReadingText ? (
+        {combinedOcrText && !isReadingText ? (
           <details className="rounded-2xl bg-white px-4 py-3">
             <summary className="cursor-pointer list-none text-xs font-bold text-ink/60">読み取った文字（参考値、間違っている場合があります）</summary>
-            <p className="mt-2 whitespace-pre-wrap text-xs text-ink/70">{ocrText}</p>
+            <p className="mt-2 whitespace-pre-wrap text-xs text-ink/70">{combinedOcrText}</p>
           </details>
         ) : null}
         {items.length > 0 && !isReadingText ? (
@@ -201,24 +277,6 @@ function ReceiptField({
               ＋ 商品を追加
             </button>
           </div>
-        ) : null}
-        {path && !isBusy ? (
-          <button
-            type="button"
-            className="min-h-10 rounded-xl border border-warn/30 bg-red-50 px-4 text-xs font-bold text-warn transition active:scale-[0.98]"
-            onClick={() => {
-              setPath("");
-              setPreview("");
-              setExistingUrl("");
-              setCompressedSize(null);
-              setOcrText("");
-              setOcrConfidence(null);
-              setItems([]);
-              setStatus("この支出からレシート写真を外します（保存時に反映されます）。");
-            }}
-          >
-            この写真を外す
-          </button>
         ) : null}
         {status ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-ink/70">{status}</p> : null}
       </div>
@@ -274,6 +332,9 @@ function ExpenseEditForm({ data, expense, categories, onCancel }: { data: Budget
         householdGroupId={data.householdGroupId}
         saveReceiptImages={Boolean(data.settings.saveReceiptImages)}
         existingPath={expense.receiptImageUrl}
+        existingExtraPaths={expense.receiptExtraImageUrls}
+        existingOcrText={expense.receiptOcrText}
+        existingConfidence={expense.receiptConfidence}
         existingItems={expense.receiptItems}
         onOcrResult={(result) => setAmountSuggestion(result.amountGuess ?? null)}
       />

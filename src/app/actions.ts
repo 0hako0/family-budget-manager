@@ -305,6 +305,18 @@ function parseReceiptItems(raw: string): { name: string; price: number }[] {
   }
 }
 
+/** 長いレシートの続き写真など、レシート画像のストレージパスの配列（JSON文字列）を検証つきで解析する。 */
+function parseReceiptExtraImageUrls(raw: string): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((path) => String(path ?? "").trim()).filter(Boolean).slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
 export async function createExpense(formData: FormData) {
   const { supabase } = await requireUser();
   const id = value(formData, "id");
@@ -318,11 +330,20 @@ export async function createExpense(formData: FormData) {
   const isCommonPayer = payerName === "共通";
   const isSharedWallet = paymentMethodType === "shared_wallet";
   const receiptImagePath = value(formData, "receiptImageUrl") || null;
+  const receiptExtraImagePaths = parseReceiptExtraImageUrls(value(formData, "receiptExtraImageUrls"));
 
-  let previousReceiptPath: string | null = null;
+  let previousReceiptPaths: string[] = [];
   if (id) {
-    const { data: existing } = await supabase.from("expenses").select("receipt_image_url").eq("id", id).eq("household_group_id", householdGroupId).maybeSingle();
-    previousReceiptPath = existing?.receipt_image_url ? String(existing.receipt_image_url) : null;
+    const { data: existing } = await supabase
+      .from("expenses")
+      .select("receipt_image_url, receipt_extra_image_urls")
+      .eq("id", id)
+      .eq("household_group_id", householdGroupId)
+      .maybeSingle();
+    previousReceiptPaths = [
+      ...(existing?.receipt_image_url ? [String(existing.receipt_image_url)] : []),
+      ...((existing?.receipt_extra_image_urls as string[] | null) ?? []).map(String)
+    ];
   }
 
   const payload = {
@@ -341,6 +362,7 @@ export async function createExpense(formData: FormData) {
     location: value(formData, "location") || null,
     memo: value(formData, "memo"),
     receipt_image_url: receiptImagePath,
+    receipt_extra_image_urls: receiptExtraImagePaths,
     receipt_ocr_text: value(formData, "receiptOcrText") || null,
     receipt_confidence: value(formData, "receiptConfidence") ? numberValue(formData, "receiptConfidence") : null,
     receipt_compressed_size: value(formData, "receiptCompressedSize") ? numberValue(formData, "receiptCompressedSize") : null,
@@ -351,8 +373,10 @@ export async function createExpense(formData: FormData) {
     ? await supabase.from("expenses").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
     : await supabase.from("expenses").insert(payload);
   if (error) redirect(`/expenses?error=${encodeURIComponent(toJapaneseError(error.message))}`);
-  if (previousReceiptPath && previousReceiptPath !== receiptImagePath) {
-    await supabase.storage.from("receipts").remove([previousReceiptPath]);
+  const currentReceiptPaths = new Set([...(receiptImagePath ? [receiptImagePath] : []), ...receiptExtraImagePaths]);
+  const removedReceiptPaths = previousReceiptPaths.filter((path) => !currentReceiptPaths.has(path));
+  if (removedReceiptPaths.length > 0) {
+    await supabase.storage.from("receipts").remove(removedReceiptPaths);
   }
   revalidateCore();
 }
@@ -551,11 +575,15 @@ export async function deleteExpense(formData: FormData) {
   const { supabase } = await requireUser();
   const id = value(formData, "id");
   const householdGroupId = value(formData, "householdGroupId");
-  const { data: existing } = await supabase.from("expenses").select("receipt_image_url").eq("id", id).eq("household_group_id", householdGroupId).maybeSingle();
+  const { data: existing } = await supabase.from("expenses").select("receipt_image_url, receipt_extra_image_urls").eq("id", id).eq("household_group_id", householdGroupId).maybeSingle();
   const { error } = await supabase.from("expenses").delete().eq("id", id).eq("household_group_id", householdGroupId);
   if (error) redirect(`/expenses?error=${encodeURIComponent(toJapaneseError(error.message))}`);
-  if (existing?.receipt_image_url) {
-    await supabase.storage.from("receipts").remove([String(existing.receipt_image_url)]);
+  const receiptPaths = [
+    ...(existing?.receipt_image_url ? [String(existing.receipt_image_url)] : []),
+    ...((existing?.receipt_extra_image_urls as string[] | null) ?? []).map(String)
+  ];
+  if (receiptPaths.length > 0) {
+    await supabase.storage.from("receipts").remove(receiptPaths);
   }
   revalidateCore();
 }

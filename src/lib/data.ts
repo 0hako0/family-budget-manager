@@ -231,6 +231,7 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       location: expense.location ? String(expense.location) : "",
       memo: String(expense.memo ?? ""),
       receiptImageUrl: expense.receipt_image_url ? String(expense.receipt_image_url) : undefined,
+      receiptExtraImageUrls: mapStringArray(expense.receipt_extra_image_urls),
       receiptOcrText: expense.receipt_ocr_text ? String(expense.receipt_ocr_text) : undefined,
       receiptConfidence: expense.receipt_confidence == null ? undefined : Number(expense.receipt_confidence),
       receiptExpiresAt: expense.receipt_expires_at ? String(expense.receipt_expires_at) : undefined,
@@ -318,6 +319,12 @@ function mapReceiptRetentionPolicy(value: string): ReceiptRetentionPolicy {
   if (value === "90_days") return "90_days";
   if (value === "forever") return "forever";
   return "none";
+}
+
+function mapStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  return items.length > 0 ? items : undefined;
 }
 
 function mapReceiptItems(value: unknown): ReceiptLineItem[] | undefined {

@@ -313,6 +313,7 @@ create table if not exists public.expenses (
   location text,
   memo text not null default '',
   receipt_image_url text,
+  receipt_extra_image_urls text[] not null default '{}'::text[],
   receipt_ocr_text text,
   receipt_confidence numeric,
   receipt_expires_at timestamptz,
@@ -340,6 +341,7 @@ alter table public.expenses add column if not exists payment_method_id uuid refe
 alter table public.expenses add column if not exists receipt_expires_at timestamptz;
 alter table public.expenses add column if not exists receipt_compressed_size integer check (receipt_compressed_size is null or receipt_compressed_size >= 0);
 alter table public.expenses add column if not exists receipt_items jsonb not null default '[]'::jsonb;
+alter table public.expenses add column if not exists receipt_extra_image_urls text[] not null default '{}'::text[];
 alter table public.expenses drop constraint if exists expenses_payment_method_id_fkey;
 alter table public.expenses add constraint expenses_payment_method_id_fkey foreign key (payment_method_id) references public.common_payment_methods(id) on delete set null;
 
@@ -355,6 +357,7 @@ begin
   update public.expenses
   set
     receipt_image_url = null,
+    receipt_extra_image_urls = '{}'::text[],
     receipt_ocr_text = null,
     receipt_confidence = null,
     receipt_expires_at = null,
