@@ -283,6 +283,13 @@ export async function createSharedWalletTransaction(formData: FormData) {
   revalidateCore();
 }
 
+/** レシート保存期間から失効日時を計算する。「保存しない」「期限なし」は自動失効させない。 */
+function computeReceiptExpiry(policy: string, from: Date) {
+  if (policy === "30_days") return new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  if (policy === "90_days") return new Date(from.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
+  return null;
+}
+
 export async function createExpense(formData: FormData) {
   const { supabase } = await requireUser();
   const id = value(formData, "id");
@@ -295,6 +302,14 @@ export async function createExpense(formData: FormData) {
   const payerName = value(formData, "payer");
   const isCommonPayer = payerName === "共通";
   const isSharedWallet = paymentMethodType === "shared_wallet";
+  const receiptImagePath = value(formData, "receiptImageUrl") || null;
+
+  let previousReceiptPath: string | null = null;
+  if (id) {
+    const { data: existing } = await supabase.from("expenses").select("receipt_image_url").eq("id", id).eq("household_group_id", householdGroupId).maybeSingle();
+    previousReceiptPath = existing?.receipt_image_url ? String(existing.receipt_image_url) : null;
+  }
+
   const payload = {
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
@@ -310,15 +325,27 @@ export async function createExpense(formData: FormData) {
     target: value(formData, "target") || "shared",
     location: value(formData, "location") || null,
     memo: value(formData, "memo"),
-    receipt_image_url: value(formData, "receiptImageUrl") || null,
+    receipt_image_url: receiptImagePath,
     receipt_ocr_text: value(formData, "receiptOcrText") || null,
-    receipt_confidence: value(formData, "receiptConfidence") ? numberValue(formData, "receiptConfidence") : null
+    receipt_confidence: value(formData, "receiptConfidence") ? numberValue(formData, "receiptConfidence") : null,
+    receipt_compressed_size: value(formData, "receiptCompressedSize") ? numberValue(formData, "receiptCompressedSize") : null,
+    receipt_expires_at: receiptImagePath ? computeReceiptExpiry(value(formData, "receiptRetentionPolicy") || "none", new Date()) : null
   };
   const { error } = id
     ? await supabase.from("expenses").update(payload).eq("id", id).eq("household_group_id", householdGroupId)
     : await supabase.from("expenses").insert(payload);
   if (error) redirect(`/expenses?error=${encodeURIComponent(toJapaneseError(error.message))}`);
+  if (previousReceiptPath && previousReceiptPath !== receiptImagePath) {
+    await supabase.storage.from("receipts").remove([previousReceiptPath]);
+  }
   revalidateCore();
+}
+
+export async function getReceiptSignedUrl(path: string): Promise<{ url?: string; error?: string }> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.storage.from("receipts").createSignedUrl(path, 60 * 10);
+  if (error || !data?.signedUrl) return { error: "レシート画像を表示できませんでした。" };
+  return { url: data.signedUrl };
 }
 
 export async function createIncome(formData: FormData) {
@@ -506,8 +533,14 @@ export async function archiveCategory(formData: FormData) {
 
 export async function deleteExpense(formData: FormData) {
   const { supabase } = await requireUser();
-  const { error } = await supabase.from("expenses").delete().eq("id", value(formData, "id")).eq("household_group_id", value(formData, "householdGroupId"));
+  const id = value(formData, "id");
+  const householdGroupId = value(formData, "householdGroupId");
+  const { data: existing } = await supabase.from("expenses").select("receipt_image_url").eq("id", id).eq("household_group_id", householdGroupId).maybeSingle();
+  const { error } = await supabase.from("expenses").delete().eq("id", id).eq("household_group_id", householdGroupId);
   if (error) redirect(`/expenses?error=${encodeURIComponent(toJapaneseError(error.message))}`);
+  if (existing?.receipt_image_url) {
+    await supabase.storage.from("receipts").remove([String(existing.receipt_image_url)]);
+  }
   revalidateCore();
 }
 

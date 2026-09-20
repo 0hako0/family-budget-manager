@@ -1,5 +1,7 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
+
 export type CompressedReceiptImage = {
   blob: Blob;
   previewUrl: string;
@@ -28,6 +30,15 @@ export async function compressReceiptImage(file: File, maxLongEdge = 1280, quali
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
+}
+
+/** 圧縮済みレシート画像を家計グループ配下のパスにアップロードし、保存先パスを返す。 */
+export async function uploadReceiptImage(compressed: CompressedReceiptImage, householdGroupId: string): Promise<string> {
+  const path = `${householdGroupId}/${crypto.randomUUID()}.jpg`;
+  const supabase = createClient();
+  const { error } = await supabase.storage.from("receipts").upload(path, compressed.blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw new Error("レシート画像のアップロードに失敗しました。");
+  return path;
 }
 
 function loadImage(url: string) {
