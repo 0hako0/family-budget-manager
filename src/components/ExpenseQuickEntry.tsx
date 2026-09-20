@@ -4,12 +4,12 @@ import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { createExpense, createExpenseCategoryFromInput, deleteExpense } from "@/app/actions";
+import { createExpense, createExpenseCategoryFromInput, deleteExpense, getReceiptSignedUrl } from "@/app/actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePayerLabel, getExpensePaymentMethodType, getMonthScopedData, getPaymentMethodLabel } from "@/lib/budget";
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
-import { compressReceiptImage } from "@/lib/receipt-image";
+import { compressReceiptImage, uploadReceiptImage } from "@/lib/receipt-image";
 import type { BudgetData, Category, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
@@ -39,6 +39,98 @@ function ExpenseDeleteForm({ id, householdGroupId }: { id: string; householdGrou
       <input type="hidden" name="householdGroupId" value={householdGroupId ?? ""} />
       <DeleteExpenseButton />
     </form>
+  );
+}
+
+function ReceiptField({ householdGroupId, saveReceiptImages, existingPath }: { householdGroupId?: string; saveReceiptImages: boolean; existingPath?: string }) {
+  const [path, setPath] = useState(existingPath ?? "");
+  const [preview, setPreview] = useState("");
+  const [existingUrl, setExistingUrl] = useState("");
+  const [status, setStatus] = useState("");
+  const [isBusy, setIsBusy] = useState(false);
+  const [compressedSize, setCompressedSize] = useState<number | null>(null);
+
+  if (!saveReceiptImages) {
+    return (
+      <details className="mt-3 rounded-2xl bg-cream/55 p-3">
+        <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシート写真</summary>
+        <p className="pt-2 text-xs font-bold text-ink/55">レシート画像の保存は設定でオフになっています。設定画面の「レシート画像を保存する」をオンにすると添付できるようになります。</p>
+      </details>
+    );
+  }
+
+  return (
+    <details className="mt-3 rounded-2xl bg-cream/55 p-3" open={Boolean(existingPath)}>
+      <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシート写真</summary>
+      <div className="grid gap-3 pt-2">
+        <input type="hidden" name="receiptImageUrl" value={path} />
+        <input type="hidden" name="receiptCompressedSize" value={compressedSize ?? ""} />
+        {existingPath && path === existingPath && !existingUrl ? (
+          <button
+            type="button"
+            className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 text-sm font-black text-leaf transition active:scale-[0.98]"
+            onClick={async () => {
+              setStatus("");
+              const result = await getReceiptSignedUrl(existingPath);
+              if (result.url) setExistingUrl(result.url);
+              else setStatus(result.error ?? "レシート画像を表示できませんでした。");
+            }}
+          >
+            保存済みのレシートを表示
+          </button>
+        ) : null}
+        {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URL, not an optimizable static asset */}
+        {existingUrl ? <img src={existingUrl} alt="保存済みのレシート" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
+        <input
+          className="mobile-input"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            setStatus("");
+            setPreview("");
+            if (!file) return;
+            if (!householdGroupId) {
+              setStatus("家計グループを確認できませんでした。");
+              return;
+            }
+            setIsBusy(true);
+            try {
+              const compressed = await compressReceiptImage(file);
+              setPreview(compressed.previewUrl);
+              const uploadedPath = await uploadReceiptImage(compressed, householdGroupId);
+              setPath(uploadedPath);
+              setCompressedSize(compressed.size);
+              setStatus(`アップロードしました（約${Math.round(compressed.size / 1024)}KB）。保存するには下のボタンを押してください。`);
+            } catch (uploadError) {
+              setStatus(uploadError instanceof Error ? uploadError.message : "画像のアップロードに失敗しました。");
+            } finally {
+              setIsBusy(false);
+            }
+          }}
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for a freshly selected receipt image */}
+        {preview ? <img src={preview} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
+        {isBusy ? <p className="text-xs font-bold text-ink/50">アップロード中...</p> : null}
+        {path && !isBusy ? (
+          <button
+            type="button"
+            className="min-h-10 rounded-xl border border-warn/30 bg-red-50 px-4 text-xs font-bold text-warn transition active:scale-[0.98]"
+            onClick={() => {
+              setPath("");
+              setPreview("");
+              setExistingUrl("");
+              setCompressedSize(null);
+              setStatus("この支出からレシート写真を外します（保存時に反映されます）。");
+            }}
+          >
+            この写真を外す
+          </button>
+        ) : null}
+        {status ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-ink/70">{status}</p> : null}
+      </div>
+    </details>
   );
 }
 
@@ -83,6 +175,8 @@ function ExpenseEditForm({ data, expense, categories, onCancel }: { data: Budget
       </Field>
       <Field label="お店・場所"><input name="location" defaultValue={expense.location ?? ""} className="mobile-input" placeholder="スーパー、Amazon など" /></Field>
       <Field label="メモ"><input name="memo" defaultValue={expense.memo} className="mobile-input" placeholder="週末まとめ買い など" /></Field>
+      <input type="hidden" name="receiptRetentionPolicy" value={data.settings.receiptRetentionPolicy} />
+      <ReceiptField householdGroupId={data.householdGroupId} saveReceiptImages={Boolean(data.settings.saveReceiptImages)} existingPath={expense.receiptImageUrl} />
       {error ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{error}</p> : null}
       <div className="grid grid-cols-2 gap-2">
         <button className="min-h-12 rounded-2xl border border-emerald-900/10 bg-white px-4 py-3 text-base font-black text-ink transition active:scale-[0.98]" type="button" onClick={onCancel}>
@@ -110,10 +204,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
   const [memo, setMemo] = useState("");
   const [error, setError] = useState("");
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
-  const [receiptPreview, setReceiptPreview] = useState("");
-  const [ocrMessage, setOcrMessage] = useState("");
-  const [isCompressingReceipt, setIsCompressingReceipt] = useState(false);
-  const [compressedReceiptSize, setCompressedReceiptSize] = useState<number | null>(null);
+  const [receiptFieldKey, setReceiptFieldKey] = useState(0);
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
 
   const currentMonthExpenses = useMemo(() => getMonthScopedData(data).expenses, [data]);
@@ -189,8 +280,7 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
           setAmount("");
           setLocation("");
           setMemo("");
-          setReceiptPreview("");
-          setOcrMessage("");
+          setReceiptFieldKey((value) => value + 1);
         }}
         onSubmit={(event) => {
           if (!validateForm()) event.preventDefault();
@@ -276,38 +366,8 @@ export function ExpenseQuickEntry({ data, errorMessage }: { data: BudgetData; er
           </div>
         </details>
 
-        <details className="mt-3 rounded-2xl bg-cream/55 p-3">
-          <summary className="min-h-11 cursor-pointer list-none py-2 text-sm font-bold text-ink">レシートを撮影・読み取る（準備中）</summary>
-          <div className="grid gap-3 pt-2">
-            <p className="rounded-2xl bg-white/70 px-4 py-3 text-xs font-bold text-ink/55">画像の保存とOCR読み取りは準備中です。今は圧縮とプレビューの確認だけができます（画像は登録時に保存されません）。</p>
-            <input className="mobile-input" type="file" accept="image/*" capture="environment" onChange={async (event) => {
-              const file = event.target.files?.[0];
-              if (receiptPreview) URL.revokeObjectURL(receiptPreview);
-              setReceiptPreview("");
-              setCompressedReceiptSize(null);
-              setOcrMessage("");
-              if (!file) return;
-              setIsCompressingReceipt(true);
-              try {
-                const compressed = await compressReceiptImage(file);
-                setReceiptPreview(compressed.previewUrl);
-                setCompressedReceiptSize(compressed.size);
-                setOcrMessage(`画像を圧縮しました。${compressed.width}x${compressed.height} / 約${Math.round(compressed.size / 1024)}KB`);
-              } catch {
-                setOcrMessage("画像の圧縮に失敗しました。別の写真でお試しください。");
-              } finally {
-                setIsCompressingReceipt(false);
-              }
-            }} />
-            {/* eslint-disable-next-line @next/next/no-img-element -- blob preview for an unsaved local receipt image */}
-            {receiptPreview ? <img src={receiptPreview} alt="レシートのプレビュー" className="max-h-56 w-full rounded-2xl object-cover" /> : null}
-            <button className="min-h-11 rounded-2xl border border-leaf/30 bg-white px-4 py-3 text-sm font-black text-leaf transition active:scale-[0.98] disabled:opacity-50" type="button" disabled={isCompressingReceipt} onClick={() => setOcrMessage("OCRは次フェーズの確認画面付き実装として残しています。読み取り結果は必ず確認してから登録する設計です。")}>
-              写真から読み取る
-            </button>
-            {compressedReceiptSize ? <p className="text-xs font-bold text-ink/50">保存・OCRに使う場合は圧縮後画像を利用します。</p> : null}
-            {ocrMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-ink/70">{ocrMessage}</p> : null}
-          </div>
-        </details>
+        <input type="hidden" name="receiptRetentionPolicy" value={data.settings.receiptRetentionPolicy} />
+        <ReceiptField key={receiptFieldKey} householdGroupId={data.householdGroupId} saveReceiptImages={Boolean(data.settings.saveReceiptImages)} />
 
         {displayError ? <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-warn">{displayError}</p> : null}
         {categories.length === 0 ? <p className="mt-3 rounded-2xl bg-cream/60 px-4 py-3 text-sm font-bold text-ink/60">支出カテゴリがまだありません。この画面で新しいカテゴリを追加できます。</p> : null}

@@ -32,6 +32,7 @@ const settings = read("src/app/(mobile)/settings/page.tsx");
 const spendingPage = read("src/app/(mobile)/spending/page.tsx");
 const securityHardening = read("supabase/migrations/015_security_advisor_hardening.sql");
 const securityLimits = read("supabase/migrations/016_limit_internal_security_definer_rpc.sql");
+const receiptImage = read("src/lib/receipt-image.ts");
 
 [
   ["新規登録", "signUp"],
@@ -120,7 +121,13 @@ check("積立に引き落とし日がある", budget.includes("dateFromMonthDay(
 check("共通クレカ未指定分は先頭カードにだけ計上", budget.includes("card.id === primaryCardId"));
 check("支払予定は翌月分も出す", budget.includes("[0, 1, 2].forEach"));
 check("ホームウィジェットは6種すべて反映", ["widgets.monthEnd", "widgets.payerBreakdown", "widgets.categoryBudget", "widgets.sharedWallet", "widgets.incomeSchedule", "widgets.burdenRatio"].every((key) => home.includes(key)));
-check("レシート保存は準備中と明示", !settings.includes("レシート画像を保存する") && expenseEntry.includes("準備中"));
+check(
+  "レシート画像の保存・表示・削除が実装済み",
+  settings.includes("レシート画像を保存する") &&
+    receiptImage.includes("async function uploadReceiptImage") &&
+    actions.includes("async function getReceiptSignedUrl") &&
+    expenseEntry.includes("function ReceiptField")
+);
 check("共通財布は全期間の支出を読む", read("src/lib/data.ts").includes("oldSharedWalletExpenseRows"));
 check("削除は家計グループで絞る", !/from("(expenses|incomes|savings|fixed_costs|loans)").delete().eq("id", value(formData, "id"));/.test(actions));
 

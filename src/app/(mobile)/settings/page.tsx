@@ -75,10 +75,20 @@ export default async function SettingsPage({
             </select>
           </label>
           {/* レシート画像の保存は未実装（アップロード・失効処理がないため）。実装するまで設定を出さない。 */}
-          <input type="hidden" name="saveReceiptImages" value="" />
-          <input type="hidden" name="receiptRetentionPolicy" value={data.settings.receiptRetentionPolicy} />
-          <div className="rounded-2xl bg-cream/60 px-4 py-3 text-xs font-bold text-ink/55">
-            レシート写真は撮影・圧縮のプレビューまでの対応です。画像の保存とOCR読み取りは準備中のため、保存期間の設定は表示していません。
+          <div className="rounded-2xl bg-cream/60 p-3">
+            <label className="flex min-h-11 items-center gap-2 text-sm font-bold text-ink">
+              <input name="saveReceiptImages" type="checkbox" defaultChecked={data.settings.saveReceiptImages} />
+              レシート画像を保存する
+            </label>
+            <label className="mt-2 grid gap-1 text-xs font-bold text-ink/65">
+              保存期間
+              <select className={inputClass} name="receiptRetentionPolicy" defaultValue={data.settings.receiptRetentionPolicy}>
+                <option value="none">保存しない</option>
+                <option value="30_days">30日</option>
+                <option value="90_days">90日</option>
+                <option value="forever">期限なし</option>
+              </select>
+            </label>
           </div>
           <label className="grid gap-1 text-sm font-bold text-ink/65">
             改善要望メモ

@@ -747,3 +747,32 @@ drop trigger if exists set_shared_wallet_transactions_updated_at on public.share
 create trigger set_shared_wallet_transactions_updated_at before update on public.shared_wallet_transactions for each row execute function public.set_updated_at();
 drop trigger if exists set_saving_goals_updated_at on public.saving_goals;
 create trigger set_saving_goals_updated_at before update on public.saving_goals for each row execute function public.set_updated_at();
+
+-- 既存DB向け（レシート画像の保存）。詳細は supabase/migrations/020_receipt_storage.sql を参照。
+insert into storage.buckets (id, name, public)
+values ('receipts', 'receipts', false)
+on conflict (id) do nothing;
+
+drop policy if exists "household members can read receipts" on storage.objects;
+create policy "household members can read receipts" on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'receipts'
+    and public.is_household_member((storage.foldername(name))[1]::uuid)
+  );
+
+drop policy if exists "household members can upload receipts" on storage.objects;
+create policy "household members can upload receipts" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'receipts'
+    and public.is_household_member((storage.foldername(name))[1]::uuid)
+  );
+
+drop policy if exists "household members can delete receipts" on storage.objects;
+create policy "household members can delete receipts" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'receipts'
+    and public.is_household_member((storage.foldername(name))[1]::uuid)
+  );
