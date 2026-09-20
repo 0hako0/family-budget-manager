@@ -200,6 +200,8 @@ export const getBudgetData = cache(async (): Promise<BudgetData> => {
       recurring: Boolean(cost.recurring),
       reviewTarget: Boolean(cost.review_target),
       reviewMemo: String(cost.review_memo ?? ""),
+      paymentMethodType: cost.payment_method_type === "shared_credit_card" ? "shared_credit_card" as const : undefined,
+      paymentMethodId: cost.payment_method_id ? String(cost.payment_method_id) : undefined,
       ...mapActivePeriod(cost)
     })),
     loans: (loansResult.data ?? []).map((loan: Record<string, unknown>) => ({

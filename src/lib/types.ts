@@ -86,6 +86,9 @@ export type FixedCost = ActivePeriod & {
   recurring: boolean;
   reviewTarget: boolean;
   reviewMemo?: string;
+  /** 共通クレカ払いの固定費のみ設定する。未設定は現金/口座直接払い。 */
+  paymentMethodType?: "shared_credit_card";
+  paymentMethodId?: string;
 };
 
 export type Loan = ActivePeriod & {

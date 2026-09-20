@@ -432,13 +432,17 @@ export function getCreditCardBillingSummaries(data: BudgetData, referenceDate = 
       );
       const billedExpenses = expenses.filter((expense) => dateInRange(expense.date, billingStart, billingEnd));
       const monthlyExpenses = expenses.filter((expense) => isDateInMonthJST(expense.date, referenceDate));
+      // クレカ払いの固定費（毎月定額）も、その月にアクティブなら1回分として引き落とし対象に含める。
+      const cardFixedCosts = data.fixedCosts.filter((cost) => cost.paymentMethodId === card.id);
+      const billedFixedCosts = sumBy(cardFixedCosts.filter((cost) => isItemActiveInMonth(cost, usageMonth)), (cost) => cost.amount);
+      const monthlyFixedCosts = sumBy(cardFixedCosts.filter((cost) => isItemActiveInMonth(cost, current.monthKey)), (cost) => cost.amount);
       return {
         card,
         billingStart,
         billingEnd,
         withdrawalDate,
-        monthlyUsage: sumBy(monthlyExpenses, (expense) => expense.amount),
-        nextBillingAmount: sumBy(billedExpenses, (expense) => expense.amount)
+        monthlyUsage: sumBy(monthlyExpenses, (expense) => expense.amount) + monthlyFixedCosts,
+        nextBillingAmount: sumBy(billedExpenses, (expense) => expense.amount) + billedFixedCosts
       };
     });
 }
@@ -451,16 +455,18 @@ export function getCreditCardBillingSummaries(data: BudgetData, referenceDate = 
 export function getMonthlyCashOutflow(data: BudgetData, referenceDate = new Date()) {
   const current = getMonthBudgetPeriod(referenceDate);
   const scoped = getMonthScopedData(data, referenceDate);
-  const previousMonthDate = getReferenceDateFromMonthKey(shiftMonthKey(current.monthKey, -1));
-  const previousScoped = getMonthScopedData(data, previousMonthDate);
+  const previousMonthKey = shiftMonthKey(current.monthKey, -1);
+  const previousScoped = getMonthScopedData(data, getReferenceDateFromMonthKey(previousMonthKey));
 
-  const fixedCostRows = scoped.fixedCosts.map((cost) => ({
-    id: `fixed-${cost.id}`,
-    date: dateFromMonthDay(current.monthKey, cost.paidOn),
-    label: cost.name,
-    amount: cost.amount,
-    type: "fixed_cost" as const
-  }));
+  const fixedCostRows = scoped.fixedCosts
+    .filter((cost) => cost.paymentMethodType !== "shared_credit_card")
+    .map((cost) => ({
+      id: `fixed-${cost.id}`,
+      date: dateFromMonthDay(current.monthKey, cost.paidOn),
+      label: cost.name,
+      amount: cost.amount,
+      type: "fixed_cost" as const
+    }));
   const loanRows = scoped.loans.map((loan) => ({
     id: `loan-${loan.id}`,
     date: dateFromMonthDay(current.monthKey, loan.paidOn),
@@ -483,12 +489,17 @@ export function getMonthlyCashOutflow(data: BudgetData, referenceDate = new Date
   const creditCardRows = cards
     .map((card) => {
       const withdrawalDay = card.withdrawalDay ?? 27;
-      const amount = sumBy(
+      const expenseAmount = sumBy(
         previousScoped.expenses.filter(
           (expense) => expense.paymentMethodId === card.id || (isSharedCreditCardExpense(expense) && !expense.paymentMethodId && card.id === primaryCardId)
         ),
         (expense) => expense.amount
       );
+      const fixedCostAmount = sumBy(
+        data.fixedCosts.filter((cost) => cost.paymentMethodId === card.id && isItemActiveInMonth(cost, previousMonthKey)),
+        (cost) => cost.amount
+      );
+      const amount = expenseAmount + fixedCostAmount;
       return {
         id: `card-${card.id}`,
         date: dateFromMonthDay(current.monthKey, withdrawalDay),
@@ -531,7 +542,10 @@ export function getUpcomingPayments(data: BudgetData, referenceDate = new Date()
     const monthDate = offset === 0 ? referenceDate : getReferenceDateFromMonthKey(shiftMonthKey(getMonthBudgetPeriod(referenceDate).monthKey, offset));
     const monthKey = getMonthBudgetPeriod(monthDate).monthKey;
     getPlannedIncomes(data, monthDate).forEach((income) => rows.push({ date: income.paidOn, type: "income", label: `給与・収入: ${income.name}`, amount: income.amount, tone: "income" }));
-    getActiveFixedCosts(data, monthDate).forEach((cost) => rows.push({ date: dateFromMonthDay(monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
+    // クレカ払いの固定費は、下の「クレカ引落」行にまとめて計上する（ここに出すと二重計上になる）。
+    getActiveFixedCosts(data, monthDate)
+      .filter((cost) => cost.paymentMethodType !== "shared_credit_card")
+      .forEach((cost) => rows.push({ date: dateFromMonthDay(monthKey, cost.paidOn), type: "fixed_cost", label: `固定費: ${cost.name}`, amount: cost.amount, tone: "outflow" }));
     getActiveLoans(data, monthDate).forEach((loan) => rows.push({ date: dateFromMonthDay(monthKey, loan.paidOn), type: "loan", label: `ローン: ${loan.name}`, amount: loan.monthlyPayment, tone: "outflow" }));
     getActiveSavings(data, monthDate).forEach((saving) => rows.push({ date: dateFromMonthDay(monthKey, saving.paidOn), type: "saving", label: `貯金積立: ${saving.name}`, amount: saving.amount, tone: "outflow" }));
   });
@@ -732,20 +746,35 @@ export function getMonthlyComparison(data: BudgetData, target: CompareTarget = "
   };
 }
 
+export type CalendarItem = {
+  id: string;
+  categoryId: string;
+  label: string;
+  amount: number;
+  kind: "expense" | "fixed_cost";
+  expense?: Expense;
+};
+
 export function getCalendarDaySummaries(data: BudgetData, referenceDate = new Date()) {
   const period = getMonthBudgetPeriod(referenceDate);
   const dailyTotals = new Map<string, number>();
-  const dailyExpenses = new Map<string, Expense[]>();
+  const dailyItems = new Map<string, CalendarItem[]>();
+  const addItem = (date: string, item: CalendarItem) => {
+    dailyTotals.set(date, (dailyTotals.get(date) ?? 0) + item.amount);
+    dailyItems.set(date, [...(dailyItems.get(date) ?? []), item]);
+  };
   getMonthScopedData(data, referenceDate).expenses.forEach((expense) => {
-    dailyTotals.set(expense.date, (dailyTotals.get(expense.date) ?? 0) + expense.amount);
-    dailyExpenses.set(expense.date, [...(dailyExpenses.get(expense.date) ?? []), expense]);
+    addItem(expense.date, { id: expense.id, categoryId: expense.categoryId, label: expense.location?.trim() || expense.memo || "支出", amount: expense.amount, kind: "expense", expense });
+  });
+  getActiveFixedCosts(data, referenceDate).forEach((cost) => {
+    addItem(dateFromMonthDay(period.monthKey, cost.paidOn), { id: cost.id, categoryId: cost.categoryId, label: cost.name, amount: cost.amount, kind: "fixed_cost" });
   });
   const firstWeekday = new Date(Date.UTC(period.year, period.month - 1, 1)).getUTCDay();
-  const cells: Array<{ date: string; day: number | null; total: number; expenses: Expense[]; inMonth: boolean }> = [];
-  for (let i = 0; i < firstWeekday; i += 1) cells.push({ date: "", day: null, total: 0, expenses: [], inMonth: false });
+  const cells: Array<{ date: string; day: number | null; total: number; items: CalendarItem[]; inMonth: boolean }> = [];
+  for (let i = 0; i < firstWeekday; i += 1) cells.push({ date: "", day: null, total: 0, items: [], inMonth: false });
   for (let day = 1; day <= period.totalDays; day += 1) {
     const date = `${period.monthKey}-${pad2(day)}`;
-    cells.push({ date, day, total: dailyTotals.get(date) ?? 0, expenses: dailyExpenses.get(date) ?? [], inMonth: true });
+    cells.push({ date, day, total: dailyTotals.get(date) ?? 0, items: dailyItems.get(date) ?? [], inMonth: true });
   }
   return { period, cells };
 }

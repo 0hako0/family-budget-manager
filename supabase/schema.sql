@@ -287,6 +287,12 @@ alter table public.fixed_costs add column if not exists ends_on date;
 alter table public.loans add column if not exists starts_on date;
 alter table public.loans add column if not exists ends_on date;
 
+-- 既存DB向け（固定費のクレカ払い）。詳細は supabase/migrations/019_fixed_cost_credit_card.sql を参照。
+alter table public.fixed_costs add column if not exists payment_method_id uuid references public.common_payment_methods(id) on delete set null;
+alter table public.fixed_costs add column if not exists payment_method_type text;
+alter table public.fixed_costs drop constraint if exists fixed_costs_payment_method_type_check;
+alter table public.fixed_costs add constraint fixed_costs_payment_method_type_check check (payment_method_type is null or payment_method_type = 'shared_credit_card');
+
 create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),
   household_group_id uuid not null references public.household_groups(id) on delete cascade,

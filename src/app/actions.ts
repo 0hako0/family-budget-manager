@@ -374,6 +374,7 @@ export async function createFixedCost(formData: FormData) {
   const name = value(formData, "name");
   const amount = numberValue(formData, "amount");
   if (!householdGroupId || !name || !amount) redirect("/fixed-costs?error=固定費名と金額を入力してください");
+  const paymentMethodId = value(formData, "paymentMethodId");
   const payload = {
     household_group_id: householdGroupId,
     member_id: value(formData, "memberId") || null,
@@ -386,6 +387,8 @@ export async function createFixedCost(formData: FormData) {
     recurring: value(formData, "recurring") !== "false",
     review_target: checked(formData, "reviewTarget"),
     review_memo: value(formData, "reviewMemo"),
+    payment_method_type: paymentMethodId ? "shared_credit_card" : null,
+    payment_method_id: paymentMethodId || null,
     ...activePeriod(formData)
   };
   const { error } = id ? await supabase.from("fixed_costs").update(payload).eq("id", id).eq("household_group_id", householdGroupId) : await supabase.from("fixed_costs").insert(payload);
