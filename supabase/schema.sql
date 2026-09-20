@@ -317,6 +317,7 @@ create table if not exists public.expenses (
   receipt_confidence numeric,
   receipt_expires_at timestamptz,
   receipt_compressed_size integer check (receipt_compressed_size is null or receipt_compressed_size >= 0),
+  receipt_items jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -338,6 +339,7 @@ alter table public.expenses add column if not exists payment_method_type text no
 alter table public.expenses add column if not exists payment_method_id uuid references public.common_payment_methods(id) on delete set null;
 alter table public.expenses add column if not exists receipt_expires_at timestamptz;
 alter table public.expenses add column if not exists receipt_compressed_size integer check (receipt_compressed_size is null or receipt_compressed_size >= 0);
+alter table public.expenses add column if not exists receipt_items jsonb not null default '[]'::jsonb;
 alter table public.expenses drop constraint if exists expenses_payment_method_id_fkey;
 alter table public.expenses add constraint expenses_payment_method_id_fkey foreign key (payment_method_id) references public.common_payment_methods(id) on delete set null;
 
@@ -356,7 +358,8 @@ begin
     receipt_ocr_text = null,
     receipt_confidence = null,
     receipt_expires_at = null,
-    receipt_compressed_size = null
+    receipt_compressed_size = null,
+    receipt_items = '[]'::jsonb
   where receipt_expires_at is not null
     and receipt_expires_at < now();
 

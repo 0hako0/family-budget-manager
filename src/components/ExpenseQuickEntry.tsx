@@ -10,7 +10,7 @@ import { calculateSharedBurden, getCategoriesByKind, getCategory, getExpensePaye
 import { getTodayJSTDateString } from "@/lib/date";
 import { yen } from "@/lib/format";
 import { compressReceiptImage, uploadReceiptImage } from "@/lib/receipt-image";
-import { recognizeReceiptText, type ReceiptOcrResult } from "@/lib/receipt-ocr";
+import { recognizeReceiptText, type ReceiptLineItem, type ReceiptOcrResult } from "@/lib/receipt-ocr";
 import type { BudgetData, Category, Expense, ExpenseTarget, PaymentMethodType } from "@/lib/types";
 import { ListSection, Table, Td } from "./ListSection";
 import { MetricCard } from "./MetricCard";
@@ -47,11 +47,13 @@ function ReceiptField({
   householdGroupId,
   saveReceiptImages,
   existingPath,
+  existingItems,
   onOcrResult
 }: {
   householdGroupId?: string;
   saveReceiptImages: boolean;
   existingPath?: string;
+  existingItems?: ReceiptLineItem[];
   onOcrResult?: (result: ReceiptOcrResult) => void;
 }) {
   const [path, setPath] = useState(existingPath ?? "");
@@ -63,6 +65,7 @@ function ReceiptField({
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
   const [ocrText, setOcrText] = useState("");
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
+  const [items, setItems] = useState<ReceiptLineItem[]>(existingItems ?? []);
 
   if (!saveReceiptImages) {
     return (
@@ -81,6 +84,7 @@ function ReceiptField({
         <input type="hidden" name="receiptCompressedSize" value={compressedSize ?? ""} />
         <input type="hidden" name="receiptOcrText" value={ocrText} />
         <input type="hidden" name="receiptConfidence" value={ocrConfidence ?? ""} />
+        <input type="hidden" name="receiptItems" value={JSON.stringify(items)} />
         {existingPath && path === existingPath && !existingUrl ? (
           <button
             type="button"
@@ -108,6 +112,7 @@ function ReceiptField({
             setPreview("");
             setOcrText("");
             setOcrConfidence(null);
+            setItems([]);
             if (!file) return;
             if (!householdGroupId) {
               setStatus("家計グループを確認できませんでした。");
@@ -136,11 +141,13 @@ function ReceiptField({
             }
 
             // アップロードの成否に関わらず、撮った写真の文字は読み取れるので試す。
+            // OCRは保存用の圧縮画像より高解像度の画像を内部で別途作るため、元のファイルを渡す。
             setIsReadingText(true);
             try {
-              const ocrResult = await recognizeReceiptText(compressed.blob);
+              const ocrResult = await recognizeReceiptText(file);
               setOcrText(ocrResult.text);
               setOcrConfidence(ocrResult.confidence);
+              setItems(ocrResult.items);
               onOcrResult?.(ocrResult);
             } catch {
               // 文字の読み取りに失敗しても致命的エラーにはしない。
@@ -159,6 +166,42 @@ function ReceiptField({
             <p className="mt-2 whitespace-pre-wrap text-xs text-ink/70">{ocrText}</p>
           </details>
         ) : null}
+        {items.length > 0 && !isReadingText ? (
+          <div className="grid gap-2 rounded-2xl bg-white px-4 py-3">
+            <p className="text-xs font-bold text-ink/60">読み取った商品明細（間違っていたら書き換えてください）</p>
+            {items.map((item, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  className="mobile-input flex-1"
+                  value={item.name}
+                  onChange={(event) => setItems((current) => current.map((current_item, i) => (i === index ? { ...current_item, name: event.target.value } : current_item)))}
+                  placeholder="商品名"
+                />
+                <input
+                  className="mobile-input w-24"
+                  type="number"
+                  inputMode="numeric"
+                  value={item.price}
+                  onChange={(event) => setItems((current) => current.map((current_item, i) => (i === index ? { ...current_item, price: Number(event.target.value) } : current_item)))}
+                />
+                <button
+                  type="button"
+                  className="min-h-10 rounded-xl border border-warn/30 bg-red-50 px-3 text-xs font-bold text-warn transition active:scale-[0.98]"
+                  onClick={() => setItems((current) => current.filter((_, i) => i !== index))}
+                >
+                  削除
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="min-h-10 rounded-xl border border-leaf/30 bg-white px-3 text-xs font-bold text-leaf transition active:scale-[0.98]"
+              onClick={() => setItems((current) => [...current, { name: "", price: 0 }])}
+            >
+              ＋ 商品を追加
+            </button>
+          </div>
+        ) : null}
         {path && !isBusy ? (
           <button
             type="button"
@@ -170,6 +213,7 @@ function ReceiptField({
               setCompressedSize(null);
               setOcrText("");
               setOcrConfidence(null);
+              setItems([]);
               setStatus("この支出からレシート写真を外します（保存時に反映されます）。");
             }}
           >
@@ -230,6 +274,7 @@ function ExpenseEditForm({ data, expense, categories, onCancel }: { data: Budget
         householdGroupId={data.householdGroupId}
         saveReceiptImages={Boolean(data.settings.saveReceiptImages)}
         existingPath={expense.receiptImageUrl}
+        existingItems={expense.receiptItems}
         onOcrResult={(result) => setAmountSuggestion(result.amountGuess ?? null)}
       />
       {amountSuggestion && amountSuggestion !== Number(amount) ? (
