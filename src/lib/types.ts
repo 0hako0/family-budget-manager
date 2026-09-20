@@ -103,11 +103,6 @@ export type Loan = ActivePeriod & {
   memo: string;
 };
 
-export type ReceiptLineItem = {
-  name: string;
-  price: number;
-};
-
 export type Expense = {
   id: string;
   amount: number;
@@ -128,7 +123,6 @@ export type Expense = {
   receiptConfidence?: number;
   receiptExpiresAt?: string;
   receiptCompressedSize?: number;
-  receiptItems?: ReceiptLineItem[];
 };
 
 export type CommonPaymentMethod = {

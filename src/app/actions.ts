@@ -290,21 +290,6 @@ function computeReceiptExpiry(policy: string, from: Date) {
   return null;
 }
 
-/** OCRで読み取った商品明細（JSON文字列）を検証つきで解析する。壊れた入力は無視して空配列にする。 */
-function parseReceiptItems(raw: string): { name: string; price: number }[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .slice(0, 50)
-      .map((item) => ({ name: String(item?.name ?? "").trim().slice(0, 60), price: Number(item?.price) }))
-      .filter((item) => item.name && Number.isFinite(item.price) && item.price > 0);
-  } catch {
-    return [];
-  }
-}
-
 /** 長いレシートの続き写真など、レシート画像のストレージパスの配列（JSON文字列）を検証つきで解析する。 */
 function parseReceiptExtraImageUrls(raw: string): string[] {
   if (!raw) return [];
@@ -366,8 +351,7 @@ export async function createExpense(formData: FormData) {
     receipt_ocr_text: value(formData, "receiptOcrText") || null,
     receipt_confidence: value(formData, "receiptConfidence") ? numberValue(formData, "receiptConfidence") : null,
     receipt_compressed_size: value(formData, "receiptCompressedSize") ? numberValue(formData, "receiptCompressedSize") : null,
-    receipt_expires_at: receiptImagePath ? computeReceiptExpiry(value(formData, "receiptRetentionPolicy") || "none", new Date()) : null,
-    receipt_items: parseReceiptItems(value(formData, "receiptItems"))
+    receipt_expires_at: receiptImagePath ? computeReceiptExpiry(value(formData, "receiptRetentionPolicy") || "none", new Date()) : null
   };
   const { error } = id
     ? await supabase.from("expenses").update(payload).eq("id", id).eq("household_group_id", householdGroupId)

@@ -77,27 +77,7 @@ check("手動更新ボタン", includes("src/components/ManualRefreshButton.tsx"
 check("Pull To Refresh", includes("src/components/PullToRefresh.tsx", "離して更新"));
 check("最終更新時刻", home.includes("LastUpdated"));
 check("支出入力の前回値記憶", expenseEntry.includes("family-budget:expense-quick-entry"));
-check("OCR画像圧縮", includes("src/lib/receipt-image.ts", "image/jpeg") && includes("src/lib/receipt-image.ts", "1280"));
-check(
-  "レシートOCRで金額を提案",
-  includes("src/lib/receipt-ocr.ts", "async function recognizeReceiptText") &&
-    includes("src/lib/receipt-ocr.ts", "function guessAmountFromReceiptText") &&
-    expenseEntry.includes("recognizeReceiptText") &&
-    expenseEntry.includes("を検出しました")
-);
-check(
-  "レシートOCRは登録番号やバーコードを金額と誤認しない",
-  includes("src/lib/receipt-ocr.ts", "MAX_PLAUSIBLE_AMOUNT") &&
-    includes("src/lib/receipt-ocr.ts", "登録番号") &&
-    includes("src/lib/receipt-ocr.ts", "codeLinePattern")
-);
-check(
-  "レシートOCRで商品明細も登録",
-  includes("src/lib/receipt-ocr.ts", "function extractLineItemsFromReceiptText") &&
-    expenseEntry.includes("receiptItems") &&
-    actions.includes("function parseReceiptItems") &&
-    schema.includes("receipt_items")
-);
+check("レシート画像圧縮", includes("src/lib/receipt-image.ts", "image/jpeg") && includes("src/lib/receipt-image.ts", "1280"));
 check(
   "長いレシートは複数枚に分けて撮影できる",
   expenseEntry.includes("receiptExtraImageUrls") &&
